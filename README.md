@@ -39,6 +39,10 @@ Without `SUPABASE_TEST_URL` the suite is skipped.
 
 Source imports can use the `@/*` alias, which maps to `src/*` (TypeScript and Jest both resolve it).
 
+## Releasing
+
+Building for TestFlight and the App Store needs your own Expo and Apple Developer accounts. Follow [`docs/release/testflight.md`](docs/release/testflight.md), then work through the [Phase 1 exit checklist](docs/phase-1-exit-checklist.md) on a real iPhone.
+
 ## Docs
 
 The spec, roadmap and implementation plans live in `docs/`.
