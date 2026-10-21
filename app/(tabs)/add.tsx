@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { butler } from '@/copy/butler';
 import { useRepositories } from '@/data/RepositoryContext';
 import type { FragranceGroup } from '@/domain/types';
@@ -93,7 +94,7 @@ export default function AddScreen() {
   );
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.parchment }]}>
+    <SafeAreaView edges={['top']} style={[styles.screen, { backgroundColor: colors.parchment }]}>
       <TextInput
         accessibilityLabel={butler.searchPlaceholder}
         placeholder={butler.searchPlaceholder}
@@ -111,7 +112,7 @@ export default function AddScreen() {
       />
       {failedQuery !== null && failedQuery === trimmed ? (
         <View style={{ paddingHorizontal: spacing.lg }}>
-          <ErrorBanner message={butler.loadFailed} onRetry={() => void runSearch(trimmed)} />
+          <ErrorBanner message={butler.searchFailed} onRetry={() => void runSearch(trimmed)} />
         </View>
       ) : null}
       {toast ? (
@@ -135,7 +136,7 @@ export default function AddScreen() {
         )}
         ListFooterComponent={footer}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

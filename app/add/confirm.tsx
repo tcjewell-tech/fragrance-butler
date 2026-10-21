@@ -18,7 +18,11 @@ const first = (v: string | string[] | undefined): string => (Array.isArray(v) ? 
 const NO_VARIANTS: Fragrance[] = [];
 
 type SizeChoice = { kind: 'preset'; ml: number } | { kind: 'other' } | null;
-type Loaded = { state: 'loading' } | { state: 'failed' } | { state: 'ready'; variants: Fragrance[] };
+type Loaded =
+  | { state: 'loading' }
+  | { state: 'failed' } // the read failed: worth retrying
+  | { state: 'unavailable' } // the read worked but none of the fragrances exist: retrying cannot help
+  | { state: 'ready'; variants: Fragrance[] };
 interface Outcome {
   key: string;
   variants: Fragrance[] | null; // null: the read failed
@@ -61,7 +65,7 @@ export default function ConfirmScreen() {
         const variants = found
           .filter((f): f is Fragrance => f !== null)
           .sort((a, b) => CONCENTRATIONS.indexOf(a.concentration) - CONCENTRATIONS.indexOf(b.concentration));
-        setOutcome({ key: loadKey, variants: variants.length > 0 ? variants : null });
+        setOutcome({ key: loadKey, variants });
       },
       () => {
         if (!cancelled) setOutcome({ key: loadKey, variants: null });
@@ -75,9 +79,11 @@ export default function ConfirmScreen() {
   const loaded: Loaded =
     outcome?.key !== loadKey
       ? { state: 'loading' }
-      : outcome.variants
-        ? { state: 'ready', variants: outcome.variants }
-        : { state: 'failed' };
+      : outcome.variants === null
+        ? { state: 'failed' }
+        : outcome.variants.length === 0
+          ? { state: 'unavailable' }
+          : { state: 'ready', variants: outcome.variants };
   const variants = loaded.state === 'ready' ? loaded.variants : NO_VARIANTS;
   const selected = variants.length === 1 ? variants[0] : (variants.find((v) => v.id === variantId) ?? null);
 
@@ -116,7 +122,16 @@ export default function ConfirmScreen() {
     >
       <FragranceRow house={house} name={name} />
 
-      {loaded.state === 'failed' ? <ErrorBanner message={butler.loadFailed} onRetry={() => setAttempt((n) => n + 1)} /> : null}
+      {loaded.state === 'failed' ? (
+        <ErrorBanner message={butler.confirmLoadFailed} onRetry={() => setAttempt((n) => n + 1)} />
+      ) : null}
+
+      {loaded.state === 'unavailable' ? (
+        <>
+          <Text style={{ fontFamily: fonts.display, fontSize: 18, color: colors.ink }}>{butler.confirmUnavailable}</Text>
+          <Button label={butler.back} onPress={() => router.back()} />
+        </>
+      ) : null}
 
       {variants.length > 1 ? (
         <View style={{ gap: spacing.md }}>

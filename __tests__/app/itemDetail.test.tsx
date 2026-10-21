@@ -120,16 +120,17 @@ describe('bottle detail screen', () => {
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
-  test('a failed read offers a retry', async () => {
+  test('a failed read says the bottle could not be opened, and offers a retry', async () => {
     const { repos, wrap, user } = setup();
     const item = await addBottle(repos, fixtureIds.sauvageEdtId);
     mockParams = { id: item.id };
     jest.spyOn(repos.collection, 'get').mockRejectedValueOnce(new Error('offline'));
     await render(wrap(<ItemScreen />));
-    expect(await screen.findByText(butler.loadFailed)).toBeOnTheScreen();
+    expect(await screen.findByText(butler.bottleLoadFailed)).toBeOnTheScreen();
+    expect(screen.queryByText(butler.loadFailed)).toBeNull();
     await user.press(screen.getByRole('button', { name: butler.retry }));
     expect(await screen.findByText('Sauvage')).toBeOnTheScreen();
-    expect(screen.queryByText(butler.loadFailed)).toBeNull();
+    expect(screen.queryByText(butler.bottleLoadFailed)).toBeNull();
   });
 
   test('toggling favourite updates the bottle', async () => {
@@ -172,7 +173,8 @@ describe('bottle detail screen', () => {
     await render(wrap(<ItemScreen />));
     await screen.findByText('Sauvage');
     await user.press(favoriteChip());
-    expect(await screen.findByText(butler.saveFailed)).toBeOnTheScreen();
+    expect(await screen.findByText(butler.favoriteFailed)).toBeOnTheScreen();
+    expect(screen.queryByText(butler.saveFailed)).toBeNull();
     expect(favoriteChip()).not.toBeSelected();
     expect((await repos.collection.get(item.id))?.item.favorite).toBe(false);
   });

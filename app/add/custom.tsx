@@ -115,7 +115,11 @@ export default function CustomScreen() {
         autoCorrect={false}
         style={[styles.input, { borderColor: errors[field] ? colors.danger : colors.brass, color: colors.ink, padding: spacing.md }]}
       />
-      {errors[field] ? <Text style={{ fontSize: 14, color: colors.danger }}>{errors[field]}</Text> : null}
+      {errors[field] ? (
+        <Text accessibilityRole="alert" style={{ fontSize: 14, color: colors.danger }}>
+          {errors[field]}
+        </Text>
+      ) : null}
     </View>
   );
 
@@ -129,18 +133,23 @@ export default function CustomScreen() {
       {textField('name', butler.customNameLabel)}
 
       <View style={{ gap: spacing.md }}>
-        {/* The prompt and the error read the same, so the error simply recolours the prompt. */}
         <Text
           accessibilityRole="header"
           style={[styles.label, { fontFamily: fonts.display, color: errors.concentration ? colors.danger : colors.ink }]}
         >
-          {errors.concentration ?? butler.chooseConcentration}
+          {butler.chooseConcentration}
         </Text>
         <View style={[styles.wrap, { gap: spacing.sm }]}>
           {CONCENTRATIONS.map((c) => (
             <Chip key={c} label={c} selected={draft.concentration === c} onPress={() => set('concentration', c)} />
           ))}
         </View>
+        {/* Its own line, not just a colour change, so the problem is announced and readable without colour. */}
+        {errors.concentration ? (
+          <Text accessibilityRole="alert" style={{ fontSize: 14, color: colors.danger }}>
+            {errors.concentration}
+          </Text>
+        ) : null}
       </View>
 
       <View style={{ gap: spacing.xs }}>
@@ -153,7 +162,11 @@ export default function CustomScreen() {
           maxLength={4}
           style={[styles.input, { borderColor: errors.releaseYear ? colors.danger : colors.brass, color: colors.ink, padding: spacing.md }]}
         />
-        {errors.releaseYear ? <Text style={{ fontSize: 14, color: colors.danger }}>{errors.releaseYear}</Text> : null}
+        {errors.releaseYear ? (
+          <Text accessibilityRole="alert" style={{ fontSize: 14, color: colors.danger }}>
+            {errors.releaseYear}
+          </Text>
+        ) : null}
       </View>
 
       {failed ? <ErrorBanner message={butler.saveFailed} onRetry={() => void submit()} /> : null}

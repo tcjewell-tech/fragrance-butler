@@ -48,7 +48,7 @@ export default function ItemScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.parchment, padding: spacing.lg, gap: spacing.lg }]}>
       {loaded.state === 'failed' ? (
-        <ErrorBanner message={butler.loadFailed} onRetry={() => setAttempt((n) => n + 1)} />
+        <ErrorBanner message={butler.bottleLoadFailed} onRetry={() => setAttempt((n) => n + 1)} />
       ) : null}
       {loaded.state === 'missing' ? (
         <>
@@ -60,6 +60,12 @@ export default function ItemScreen() {
   );
 }
 
+const ERROR_COPY = {
+  save: butler.saveFailed,
+  favorite: butler.favoriteFailed,
+  remove: butler.removeFailed,
+} as const;
+
 function Detail({ entry }: { entry: CollectionEntry }) {
   const { colors, fonts, spacing } = useTheme();
   const router = useRouter();
@@ -69,7 +75,7 @@ function Detail({ entry }: { entry: CollectionEntry }) {
   const [notes, setNotes] = useState(item.userNotes ?? '');
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
-  const [error, setError] = useState<'save' | 'remove' | null>(null);
+  const [error, setError] = useState<'save' | 'favorite' | 'remove' | null>(null);
   // One favourite write at a time: a second press while one is in flight could not be reverted cleanly.
   const favoriteBusy = useRef(false);
   const removing = useRef(false);
@@ -96,7 +102,7 @@ function Detail({ entry }: { entry: CollectionEntry }) {
         favoriteBusy.current = false;
         if (!mounted.current) return;
         setFavorite(previous);
-        setError('save');
+        setError('favorite');
       },
     );
   };
@@ -206,7 +212,7 @@ function Detail({ entry }: { entry: CollectionEntry }) {
         <Button label={butler.saveNotes} onPress={saveNotes} disabled={savingNotes} />
       </View>
 
-      {error ? <ErrorBanner message={error === 'save' ? butler.saveFailed : butler.removeFailed} /> : null}
+      {error ? <ErrorBanner message={ERROR_COPY[error]} /> : null}
 
       <Button variant="danger" label={butler.removeCta} onPress={confirmRemove} />
     </ScrollView>

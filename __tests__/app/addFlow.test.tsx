@@ -201,16 +201,26 @@ describe('search screen', () => {
     expect(screen.queryByText('Dior · Sauvage')).toBeNull();
   });
 
-  test('a search failure shows the load-failed banner, and retry searches again', async () => {
+  test('sits below the status bar: the root is a top-edge SafeAreaView', async () => {
+    const { wrap } = setup();
+    await render(wrap(<AddScreen />));
+    // Under Jest the safe-area view is the native host component, with edges normalised to a map.
+    const root = screen.toJSON() as unknown as { type: string; props: { edges: Record<string, string> } };
+    expect(root.type).toBe('RNCSafeAreaView');
+    expect(root.props.edges).toMatchObject({ top: 'additive', right: 'off', bottom: 'off', left: 'off' });
+  });
+
+  test('a search failure says the search failed (not the collection), and retry searches again', async () => {
     const { repos, wrap, user } = setup();
     jest.spyOn(repos.catalog, 'search').mockRejectedValueOnce(new RepositoryError('network', 'offline'));
     await render(wrap(<AddScreen />));
     await user.type(searchInput(), 'sauvage');
     await advance(250);
-    expect(await screen.findByText(butler.loadFailed)).toBeOnTheScreen();
+    expect(await screen.findByText(butler.searchFailed)).toBeOnTheScreen();
+    expect(screen.queryByText(butler.loadFailed)).toBeNull();
     await user.press(button(butler.retry));
     expect(await screen.findByText('Dior · Sauvage')).toBeOnTheScreen();
-    expect(screen.queryByText(butler.loadFailed)).toBeNull();
+    expect(screen.queryByText(butler.searchFailed)).toBeNull();
   });
 });
 
@@ -408,13 +418,31 @@ describe('confirm screen', () => {
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
-  test('shows the loading-failed banner when the fragrance cannot be read, and retry recovers', async () => {
+  test('shows the fragrance-load-failed banner when it cannot be read, and retry recovers', async () => {
     const repos = createMemoryRepositories(fixtureCatalog);
     jest.spyOn(repos.catalog, 'getById').mockRejectedValueOnce(new RepositoryError('network', 'offline'));
     const { user } = await renderConfirm({ house: 'Hermès', name: 'Terre d’Hermès', ids: hermesId }, repos);
-    expect(await screen.findByText(butler.loadFailed)).toBeOnTheScreen();
+    expect(await screen.findByText(butler.confirmLoadFailed)).toBeOnTheScreen();
+    expect(screen.queryByText(butler.loadFailed)).toBeNull();
     await user.press(button(butler.retry));
     expect(await screen.findByText(butler.chooseSize)).toBeOnTheScreen();
+    expect(screen.queryByText(butler.confirmLoadFailed)).toBeNull();
+  });
+
+  test('when every id is unknown it says so with a Back button and no retry', async () => {
+    const { user } = await renderConfirm({ house: 'Gone', name: 'Away', ids: '99999999-9999-4999-8999-999999999999,88888888-8888-4888-8888-888888888888' });
+    expect(await screen.findByText(butler.confirmUnavailable)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: butler.retry })).toBeNull();
+    expect(screen.queryByText(butler.confirmLoadFailed)).toBeNull();
+    expect(screen.queryByText(butler.chooseSize)).toBeNull();
+    await user.press(button(butler.back));
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('one unknown id among known ones still confirms the known variants', async () => {
+    await renderConfirm({ house: 'Dior', name: 'Sauvage', ids: `${sauvageEdtId},99999999-9999-4999-8999-999999999999` });
+    expect(await screen.findByText(butler.chooseSize)).toBeOnTheScreen();
+    expect(screen.queryByText(butler.confirmUnavailable)).toBeNull();
   });
 
   test('success goes back to search, which keeps its query and shows the confirmation for ~2.5 s', async () => {
@@ -548,6 +576,8 @@ describe('custom screen', () => {
     await user.press(continueButton());
     expect(screen.getAllByText(butler.customFieldRequired)).toHaveLength(2);
     expect(screen.getByText(butler.customConcentrationRequired)).toBeOnTheScreen();
+    // Every error is announced by VoiceOver.
+    expect(screen.getAllByRole('alert')).toHaveLength(3);
   });
 
   test('a missing concentration shows its own error', async () => {
@@ -558,6 +588,9 @@ describe('custom screen', () => {
     await user.press(continueButton());
     expect(screen.getByText(butler.customConcentrationRequired)).toBeOnTheScreen();
     expect(screen.queryByText(butler.customFieldRequired)).toBeNull();
+    // Its own line under the chips; the prompt above keeps its words.
+    expect(screen.getByText(butler.chooseConcentration)).toBeOnTheScreen();
+    expect(screen.getByRole('alert', { name: butler.customConcentrationRequired })).toBeOnTheScreen();
     expect(createCustom).not.toHaveBeenCalled();
   });
 
