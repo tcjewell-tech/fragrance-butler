@@ -1,7 +1,11 @@
 begin;
 select plan(15);
 
--- Tests insert their own rows and never depend on the seed contents.
+-- Tests insert their own rows and never depend on the seed contents. Clear the seeded reference
+-- rows first (nothing references them here, and the transaction rolls back) so fixtures that reuse
+-- a seeded fragrance do not collide with fragrances_reference_unique.
+delete from public.fragrances where created_by is null;
+
 insert into public.fragrances (id, house, name, concentration, release_year) values
   ('eeeeeeee-0000-4000-8000-000000000001', 'Hermès', 'Terre d’Hermès', 'EDT', 2006);
 insert into public.fragrances (id, house, name, concentration, release_year) values
@@ -72,7 +76,7 @@ select is(
 set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 select is(
   (select name from public.search_fragrances('hermes terre d''hermes') limit 1),
-  'Terre d’Hermès', 'best match first (the seed may hold a tied duplicate, so compare the name)');
+  'Terre d’Hermès', 'best match first');
 
 select * from finish();
 rollback;

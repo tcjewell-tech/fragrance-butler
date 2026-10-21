@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { buildSeedSql } from '../../scripts/build-seed.mjs';
+import { buildSeedSql, normalizeKey } from '../../scripts/build-seed.mjs';
+import { normalizeForSearch } from '@/domain/search';
 import { CONCENTRATIONS } from '@/domain/types';
 
 const HEADER = 'house,name,concentration,release_year';
@@ -44,6 +45,24 @@ describe('buildSeedSql', () => {
 
   it('throws on a duplicate house + name + concentration', () => {
     expect(() => buildSeedSql(csv(HEADER, 'Dior,Sauvage,EDT,2015', 'Dior,Sauvage,EDT,2016'))).toThrow(/row 3.*duplicate/i);
+  });
+
+  it('throws on an accent-insensitive duplicate (Hermes vs Hermès)', () => {
+    expect(() => buildSeedSql(csv(HEADER, 'Hermes,Terre,EDT,2006', 'Hermès,Terre,EDT,2006'))).toThrow(/row 3.*duplicate/i);
+    expect(() => buildSeedSql(csv(HEADER, 'Hermès,Terre d’Hermès,EDP,', "HERMES,terre d'hermes,EDP,"))).toThrow(/row 3.*duplicate/i);
+    expect(() => buildSeedSql(csv(HEADER, 'Hermes,Terre,EDT,2006', 'Hermès,Terre,EDP,2006'))).not.toThrow();
+  });
+
+  it('keys duplicates with the same normalization as the app', () => {
+    for (const input of ['Cœur Œillet Æther Ørsted Straße Łódź \ufb01g “quoted” Hermès Terre d’Hermès', '  L‘Eau `a´ ']) {
+      expect(normalizeKey(input)).toBe(normalizeForSearch(input));
+    }
+  });
+
+  it('makes re-seeding additive: on conflict do nothing on the reference-row index', () => {
+    const sql = buildSeedSql(csv(HEADER, 'Dior,Sauvage,EDT,2015'));
+    expect(sql).toMatch(/\)\n?\s*on conflict \(lower\(house\), lower\(name\), concentration\) where created_by is null do nothing;\n$/);
+    expect(sql.match(/on conflict/g)).toHaveLength(1);
   });
 
   it('throws on a blank name or house', () => {

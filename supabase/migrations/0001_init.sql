@@ -33,9 +33,10 @@ create table public.fragrances (
 create table public.collection_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
-  -- Cascade so deleting a custom fragrance (e.g. via its owner's account deletion) never
-  -- fails on the owner's own items. RLS stops anyone else referencing a custom entry.
-  fragrance_id uuid not null references public.fragrances on delete cascade,
+  -- No cascade: a fragrance someone owns cannot be deleted, so catalog maintenance can never
+  -- wipe a collection. Account deletion still works: auth.users cascades to the user's items and
+  -- custom fragrances (see 0003_delete_account.test.sql).
+  fragrance_id uuid not null references public.fragrances(id),
   bottle_size_ml int not null check (bottle_size_ml between 1 and 1000),
   concentration text not null check (concentration in ('EDT', 'EDP', 'Parfum', 'Extrait', 'Other')),
   acquisition_date date,
@@ -51,6 +52,12 @@ create table public.collection_items (
 create index collection_items_user_id_idx on public.collection_items (user_id);
 create index collection_items_fragrance_id_idx on public.collection_items (fragrance_id);
 create index fragrances_created_by_idx on public.fragrances (created_by) where created_by is not null;
+-- Reference (catalog) rows are unique per house + name + concentration, ignoring case. This is what
+-- makes re-running seed.sql additive (it inserts with ON CONFLICT DO NOTHING). Accent-folding
+-- duplicates are caught when the seed is built (scripts/build-seed.mjs). Custom rows are exempt.
+create unique index fragrances_reference_unique
+  on public.fragrances (lower(house), lower(name), concentration)
+  where created_by is null;
 
 create function public.set_updated_at() returns trigger
 language plpgsql

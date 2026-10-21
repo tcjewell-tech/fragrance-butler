@@ -71,4 +71,6 @@ shopt -s nullglob
 for f in "$ROOT"/supabase/migrations/*.sql; do load "$f"; done
 if [ -f "$ROOT/supabase/seed.sql" ]; then load "$ROOT/supabase/seed.sql"; fi
 
+# From the repo root: 0004_catalog.test.sql runs `\i supabase/seed.sql`.
+cd "$ROOT"
 pg_prove "$ROOT"/supabase/tests/*.test.sql

@@ -8,4 +8,5 @@ insert into public.fragrances (house, name, concentration, release_year) values
   ('Tom Ford', 'Tobacco Vanille', 'EDP', 2007),
   ('Maison Francis Kurkdjian', 'Baccarat Rouge 540', 'Extrait', 2015),
   ('Guerlain', 'Habit Rouge', 'EDT', 1965),
-  ('Guerlain', 'Shalimar', 'EDP', null);
+  ('Guerlain', 'Shalimar', 'EDP', null)
+on conflict (lower(house), lower(name), concentration) where created_by is null do nothing;
