@@ -22,6 +22,9 @@
 - Non-goals: no purchasing or prices, no social features, no ratings, no remaining-volume tracking (§2.3).
 - No third-party API keys in the app bundle. The only public key the app holds is the Supabase anon key.
 - The collection must survive losing the device: Supabase is the source of truth (§5 Storage).
+- Audience: friends and family through TestFlight first, then the App Store. App Store guideline 5.1.1(v) requires that **an app that lets users create an account must let them delete it in the app**. Sign-in is email OTP only (Sign in with Apple is not required because no third-party social login is offered).
+- Starter catalog: built from Tom's own collection, supplied as `supabase/seed/catalog.csv`. Until it arrives, a ≤10-row placeholder CSV is used, with a `# PLACEHOLDER` first line.
+- Database tests must run without Docker. `npm run test:db` creates a throwaway local Postgres 16 cluster, loads `supabase/tests/_supabase_shim.sql` (which stands in for Supabase's `auth` schema, `auth.uid()` and the `anon`/`authenticated` roles), applies the migrations and seed, then runs `pg_prove supabase/tests/*.test.sql`. The same files also work with `supabase test db` wherever Docker is available.
 
 ## Review Focus
 
@@ -56,10 +59,16 @@ src/data/RepositoryContext.tsx    provider + useRepositories()
 src/copy/butler.ts                all user-facing copy
 src/ui/theme.ts                   colour/type/spacing tokens
 src/ui/components/*.tsx           Button, Chip, FragranceRow, EmptyState, ErrorBanner
+app/settings.tsx                  sign out, delete account
 supabase/migrations/0001_init.sql
-supabase/seed.sql
+supabase/seed/catalog.csv         starter catalog (Tom's collection)
+supabase/seed.sql                 GENERATED from catalog.csv, committed
+scripts/build-seed.mjs            catalog.csv → seed.sql
+scripts/test-db.sh                throwaway Postgres + pg_prove
+supabase/tests/_supabase_shim.sql auth schema/roles stand-in (local only)
 supabase/tests/0001_rls.test.sql
 supabase/tests/0002_search.test.sql
+supabase/tests/0003_delete_account.test.sql
 __tests__/…                       mirrors src/ and app/
 ```
 
@@ -171,7 +180,8 @@ test('favorites sort puts favorites first, then house order', …);
 ### Task 3: Supabase schema, RLS, search function, seed catalog
 
 **Files:**
-- Create: `supabase/config.toml` (via `supabase init`), `supabase/migrations/0001_init.sql`, `supabase/seed.sql`, `supabase/tests/0001_rls.test.sql`, `supabase/tests/0002_search.test.sql`
+- Create: `supabase/config.toml` (via `npx supabase init`), `supabase/migrations/0001_init.sql`, `supabase/seed/catalog.csv`, `scripts/build-seed.mjs`, `supabase/seed.sql` (generated), `scripts/test-db.sh`, `supabase/tests/_supabase_shim.sql`, `supabase/tests/0001_rls.test.sql`, `supabase/tests/0002_search.test.sql`, `supabase/tests/0003_delete_account.test.sql`, `__tests__/scripts/buildSeed.test.ts`
+- Modify: `package.json` scripts: `"test:db": "bash scripts/test-db.sh"`, `"seed:build": "node scripts/build-seed.mjs"`
 
 **Interfaces:**
 - Produces tables:
@@ -181,16 +191,22 @@ test('favorites sort puts favorites first, then house order', …);
 - Produces RLS policies:
   - `fragrances`: users can read rows where `created_by is null or created_by = auth.uid()`. Users can insert only rows where `created_by = auth.uid()`. Users cannot update or delete reference rows.
   - `collection_items`: all operations are limited to rows where `user_id = auth.uid()`.
-- Produces seed data: about 40 well-known reference rows (house, name, concentration, release_year only, with at least 3 fragrances that come in several concentrations). No notes or descriptions copied from third-party databases (spec §7 #1).
+- Produces RPC: `delete_my_account() returns void`. It is `security definer`, `set search_path = ''`, and deletes `auth.users where id = auth.uid()`. The cascade removes the user's collection_items and custom fragrances. It raises an exception if `auth.uid()` is null. `execute` is granted only to `authenticated`.
+- Produces `supabase/seed/catalog.csv` with the header `house,name,concentration,release_year` (release_year may be empty; values are RFC 4180 quoted when they contain commas or quotes). The placeholder has ≤10 rows, including one fragrance in two concentrations and one name with an accent and a curly apostrophe (`Hermès,Terre d’Hermès,EDT,2006`). No notes or descriptions copied from third-party databases (spec §7 #1).
+- Produces `scripts/build-seed.mjs`: exports `buildSeedSql(csvText: string): string` and, when run directly, writes `supabase/seed.sql`. Lines starting with `#` are skipped. Each value is trimmed. It throws `Error("row N: ...")` for an unknown concentration, a blank house or name, a non-integer year, or a duplicate (house, name, concentration). Output is `insert into public.fragrances (house, name, concentration, release_year) values (...)` with single quotes doubled.
+- `scripts/test-db.sh`: `initdb` into `mktemp -d`, starts `postgres` on a free port in the background with `-k <tmpdir>` (works as root by running it as the `postgres` OS user), creates the db, loads the shim → migrations in order → seed.sql, runs `pg_prove`, and always stops the cluster and deletes the tmpdir (`trap`). Exits non-zero if any test fails. Binaries come from `$(pg_config --bindir)` or fall back to `/usr/lib/postgresql/16/bin`.
+- `_supabase_shim.sql`: `create schema auth; create table auth.users(id uuid primary key, email text);` roles `anon`, `authenticated`, `service_role` (nologin), and `auth.uid()` returning `coalesce(nullif(current_setting('request.jwt.claim.sub', true), ''), (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'))::uuid`. Tests impersonate a user with `set local role authenticated; set local request.jwt.claim.sub = '<uuid>';`.
 
 - [ ] **Step 1: Write failing pgTAP tests**
   - `0001_rls.test.sql`: create users A and B → A inserts a collection item and a custom fragrance → as B: `is((select count(*) from collection_items), 0)`, B cannot see A's custom fragrance, B can see reference rows, an insert by B with `user_id = A` fails, and an update by B of a reference fragrance changes 0 rows.
   - Same file: inserting the same `client_request_id` twice raises `unique_violation`.
-  - `0002_search.test.sql`: seeding `Hermès / Terre d’Hermès / EDT`, then `search_fragrances('hermes terre d''hermes')` returns it. `search_fragrances('sauvge')` (typo) returns `Dior Sauvage`. An empty `q` returns 0 rows.
-- [ ] **Step 2:** Run `supabase start && supabase test db`. Expected: FAIL (relations missing).
-- [ ] **Step 3:** Write `0001_init.sql` (extensions `unaccent`, `pg_trgm`, the tables above, an `updated_at` trigger, RLS, the RPC) and `seed.sql`.
-- [ ] **Step 4:** Run `supabase db reset && supabase test db`. Expected: all pass.
-- [ ] **Step 5:** Commit `feat(db): fragrances + collection_items schema with RLS and accent-insensitive search`.
+  - `0002_search.test.sql`: with `Hermès / Terre d’Hermès / EDT` (the test inserts its own rows and does not depend on the seed contents), `search_fragrances('hermes terre d''hermes')` returns it. `search_fragrances('sauvge')` (typo) returns `Dior Sauvage`. An empty `q` returns 0 rows.
+  - `0003_delete_account.test.sql`: user A with 2 collection items and 1 custom fragrance calls `delete_my_account()` → A's `auth.users` row is gone, and as service: 0 collection items and 0 custom fragrances for A. User B's items are untouched. Calling as `anon` (no sub) raises an error.
+  - `buildSeed.test.ts`: the output contains `'Terre d''Hermès'`. A quoted CSV value with a comma round-trips. `#` lines are skipped. Throws `/row 3/` for `Cologne` as the concentration. Throws on a duplicate row. Throws on a blank name.
+- [ ] **Step 2:** Run `npm run test:db` and `npm test -- buildSeed`. Expected: FAIL (relations missing / module missing).
+- [ ] **Step 3:** Write the shim, `test-db.sh`, `0001_init.sql` (extensions `unaccent`, `pg_trgm`, `pgcrypto`, the tables above, an `updated_at` trigger, RLS, both RPCs), `build-seed.mjs`, the placeholder CSV, and the generated `seed.sql`.
+- [ ] **Step 4:** Run `npm run test:db && npm test -- buildSeed`. Expected: all pass.
+- [ ] **Step 5:** Commit `feat(db): schema, RLS, search, account deletion, CSV seed pipeline`.
 
 ---
 
@@ -243,7 +259,8 @@ test('favorites sort puts favorites first, then house order', …);
 
 **Interfaces:**
 - Consumes: Task 3 schema and RPC; Task 4 interfaces and contract suite.
-- Produces: `createSupabaseRepositories(client: SupabaseClient): { catalog; collection }`, `rowToFragrance(row): Fragrance`, `rowToCollectionItem(row): CollectionItem`, `supabaseClient` (singleton, sessions saved with AsyncStorage), `useSession(): { session: Session | null; loading: boolean }`, `signInWithEmailOtp(email: string): Promise<void>`, `verifyEmailOtp(email: string, token: string): Promise<void>`, `signOut(): Promise<void>`.
+- Produces: `createSupabaseRepositories(client: SupabaseClient): { catalog; collection }`, `rowToFragrance(row): Fragrance`, `rowToCollectionItem(row): CollectionItem`, `supabaseClient` (singleton, sessions saved with AsyncStorage), `useSession(): { session: Session | null; loading: boolean }`, `signInWithEmailOtp(email: string): Promise<void>`, `verifyEmailOtp(email: string, token: string): Promise<void>`, `signOut(): Promise<void>`, `deleteAccount(): Promise<void>` (calls `rpc('delete_my_account')` and then `signOut()`).
+- Note: the integration test needs a running Supabase stack (Docker). In environments without one it is skipped. The mapper tests and the memory contract suite are the gate there.
 
 - [ ] **Step 1: Write failing tests:** a mapper test that converts a snake_case row into the expected camelCase object (`favorite_flag → favorite`, `created_by != null → isCustom: true`, `note_pyramid` missing a key → empty array). The integration test runs `runRepositoryContract('supabase', …)` against local Supabase as a signed-in test user.
 - [ ] **Step 2:** Run `npm test -- __tests__/data/mappers`. Expected: FAIL.
@@ -276,6 +293,11 @@ test('favorites sort puts favorites first, then house order', …);
     saveFailed: 'I couldn’t save that just now. Your selection is kept. Try again when ready.',
     loadFailed: 'I couldn’t reach your collection. Pull to try again.',
     removeConfirm: 'Remove this bottle from your collection?',
+    signOut: 'Sign out',
+    deleteAccount: 'Delete account',
+    deleteAccountConfirm: 'This permanently removes your account and your entire collection. It cannot be undone.',
+    deleteAccountConfirmCta: 'Delete permanently',
+    deleteAccountFailed: 'I couldn’t delete your account just now. Nothing has been removed. Please try again.',
     signInTitle: 'Good day.', signInBody: 'Your email, and I’ll send a sign-in code.',
   } as const;
   ```
@@ -317,14 +339,14 @@ test('favorites sort puts favorites first, then house order', …);
 
 ---
 
-### Task 8: Collection browse and bottle detail
+### Task 8: Collection browse, bottle detail, settings (sign out / delete account)
 
 **Files:**
-- Create: `app/(tabs)/index.tsx`, `app/item/[id].tsx`
-- Test: `__tests__/app/collection.test.tsx`
+- Create: `app/(tabs)/index.tsx`, `app/item/[id].tsx`, `app/settings.tsx` (opened from a header button on the Collection tab)
+- Test: `__tests__/app/collection.test.tsx`, `__tests__/app/settings.test.tsx`
 
 **Interfaces:**
-- Consumes: `collection.list/get/update/remove`, `sortCollection`, `butler`, `EmptyState`, `ErrorBanner`.
+- Consumes: `collection.list/get/update/remove`, `sortCollection`, `butler`, `EmptyState`, `ErrorBanner`, `signOut`, `deleteAccount` (Task 5). The settings screen receives `signOut`/`deleteAccount` through an `AccountActions` context (`{ signOut(): Promise<void>; deleteAccount(): Promise<void> }`), provided in `app/_layout.tsx`, so tests can inject fakes.
 
 - [ ] **Step 1: Write failing tests:**
   - An empty collection shows `butler.emptyCollection`, and its CTA opens the Add tab.
@@ -332,6 +354,7 @@ test('favorites sort puts favorites first, then house order', …);
   - Each row shows house, name, concentration and `"{n} ml"`. Two bottles of the same fragrance appear as two rows.
   - On the detail screen, house, name, concentration, size, notes (or "Notes not yet known" when the pyramid is empty), and the favorite toggle are shown. Toggling favorite calls `update(id, { favorite: true })`. Editing and saving `userNotes` persists. Remove → confirm dialog → `remove` → go back.
   - If `list` rejects, `butler.loadFailed` is shown, and pull-to-refresh tries again.
+  - Settings: "Sign out" calls `signOut`. "Delete account" shows `butler.deleteAccountConfirm`. Cancel → `deleteAccount` is not called. Confirming → `deleteAccount` is called once (a double-tap still calls it once). If it rejects → `butler.deleteAccountFailed` is shown.
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement using a `FlatList` (it renders only visible rows, so large collections scroll smoothly). The list reloads whenever the Collection tab gets focus.
 - [ ] **Step 4:** Run `npm test && npm run typecheck && npm run lint`. Expected: all pass.
@@ -345,7 +368,10 @@ test('favorites sort puts favorites first, then house order', …);
 - Create: `eas.json` (profiles `development`, `preview`), `docs/phase-1-exit-checklist.md`
 - Modify: `app.json` (iOS `bundleIdentifier`, app name "Fragrance Butler")
 
-- [ ] **Step 1:** Run `eas build --platform ios --profile preview`. Expected: the build succeeds and installs through TestFlight or an internal-distribution link.
+- Create: `docs/release/testflight.md`. It covers: the steps Tom runs (`npx eas-cli login`, `eas build -p ios --profile production`, `eas submit -p ios`), adding external testers (friends and family) in App Store Connect, Beta App Review, the App Privacy answers (email address + user content, linked to the user, not used for tracking), and the requirement for a privacy policy URL. Building and submitting need Tom's Expo and Apple Developer accounts, so this cloud session only prepares the config and docs.
+- Add an `eas.json` `production` profile with `autoIncrement: true`.
+
+- [ ] **Step 1:** Validate the config without an account: `npx expo config --type public` succeeds and shows `ios.bundleIdentifier`. `npx expo-doctor` reports no errors. Then Tom runs `eas build --platform ios --profile production` and `eas submit`. Expected: the build is available in TestFlight.
 - [ ] **Step 2:** Do a manual exit check on a real iPhone. Record the results in the checklist:
   - Sign in.
   - Add 5 bottles by search, 1 as a custom entry, and 1 duplicate in a different size.
