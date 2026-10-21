@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { groupVariants, normalizeForSearch } from '@/domain/search';
 import type { Concentration, Fragrance } from '@/domain/types';
 
@@ -23,6 +25,31 @@ test('normalizes accents, curly apostrophes, case, whitespace', () =>
 
 test('normalizes other apostrophe-like characters', () =>
   expect(normalizeForSearch('L‘Eau `a´')).toBe("l'eau 'a'"));
+
+// The same input and expected string are asserted in supabase/tests/0002_search.test.sql, so the
+// app and the database cannot drift apart (Ruling R1).
+const PARITY_INPUT = 'Cœur Œillet Æther Ørsted Straße Łódź \ufb01g “quoted” Hermès Terre d’Hermès';
+const PARITY_EXPECTED = 'coeur oeillet aether orsted strasse lodz fig "quoted" hermes terre d\'hermes';
+
+test('folds Latin perfume text: ligatures, stroked letters, sharp s, curly quotes', () =>
+  expect(normalizeForSearch(PARITY_INPUT)).toBe(PARITY_EXPECTED));
+
+test('folds each mapped letter in both cases', () =>
+  expect(normalizeForSearch('œŒ æÆ øØ ß łŁ đĐ')).toBe('oeoe aeae oo ss ll dd'));
+
+test('unifies the modifier-letter apostrophe and curly double quotes', () =>
+  expect(normalizeForSearch('d\u02bcHermès “a”')).toBe('d\'hermes "a"'));
+
+test('NFKD folds compatibility characters and decomposes kana voicing marks', () => {
+  expect(normalizeForSearch('ﬁﬂ ２')).toBe('fifl 2');
+  expect(normalizeForSearch('ガ ２ ʼ ™')).toBe("カ 2 ' tm");
+});
+
+test('the database test asserts the same input and expected literal', () => {
+  const sql = readFileSync(join(__dirname, '../../supabase/tests/0002_search.test.sql'), 'utf8');
+  expect(sql).toContain(PARITY_INPUT);
+  expect(sql).toContain(PARITY_EXPECTED.replaceAll("'", "''"));
+});
 
 test('groups concentration variants of the same house+name', () => {
   const g = groupVariants([f('Dior', 'Sauvage', 'EDT'), f('Dior', 'Sauvage', 'EDP'), f('Chanel', 'Bleu', 'EDP')]);

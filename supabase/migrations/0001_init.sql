@@ -2,7 +2,6 @@
 
 -- Extensions live in the `extensions` schema, as on Supabase.
 create schema if not exists extensions;
-create extension if not exists unaccent with schema extensions;
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists pgcrypto with schema extensions;
 grant usage on schema extensions to authenticated;
@@ -121,22 +120,44 @@ create policy collection_items_delete on public.collection_items
 -- Search
 -- ---------------------------------------------------------------------------
 
--- Must stay in step with normalizeForSearch in src/domain/search.ts:
--- unify curly apostrophes/backticks, strip accents, lowercase, collapse whitespace, trim.
--- (Not IMMUTABLE because unaccent() is STABLE, so it cannot back an expression index;
--- the catalog is small enough that a sequential scan is fine in Phase 1.)
+-- Must stay in step with normalizeForSearch in src/domain/search.ts (both are asserted against the
+-- same literal, see supabase/tests/0002_search.test.sql). Steps, in order: unify apostrophes
+-- (’ ‘ ` ´ ʼ; first, because NFKD would turn ´ into a space plus a combining mark), NFKD, strip
+-- combining marks, fold the letters NFKD leaves alone (œ æ ø ß ł đ), unify “ ” to ",
+-- lowercase, collapse whitespace, trim.
+-- This deliberately does not use unaccent(): its rule table differs between Postgres versions and
+-- from the app (it keeps kana voicing marks, maps © to (C), and so on).
+-- Parity is exact for Latin text. Combining marks are stripped only in the blocks below (diacritics,
+-- Arabic vowel marks, extended/supplement/symbol/half marks, and the kana voicing marks U+3099-309A,
+-- so ガ folds to カ as in the app). The app strips every script's marks (\p{M}), so marks in other
+-- scripts, such as Indic vowel signs, are kept here but removed there.
+-- Immutable because every function used is. Needs a UTF8 database, as Supabase is.
 create function public.normalize_for_search(s text) returns text
-language sql stable
+language sql immutable
 set search_path = ''
 as $$
-  select pg_catalog.btrim(
-    pg_catalog.regexp_replace(
-      pg_catalog.lower(
-        extensions.unaccent(pg_catalog.translate(s, '’‘`´', pg_catalog.repeat('''', 4)))
-      ),
-      E'[[:space:]\\u00a0]+', ' ', 'g'
+  with
+    apostrophes as (
+      select pg_catalog.translate(s, '’‘`´ʼ', pg_catalog.repeat('''', 5)) as v
+    ),
+    decomposed as (
+      select pg_catalog.regexp_replace(
+        normalize(v, NFKD),
+        E'[\\u0300-\\u036f\\u0610-\\u061a\\u064b-\\u065f\\u0670\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\u3099\\u309a]',
+        '', 'g') as v
+      from apostrophes
+    ),
+    folded as (
+      select pg_catalog.translate(
+        pg_catalog.replace(pg_catalog.replace(pg_catalog.replace(pg_catalog.replace(pg_catalog.replace(
+          v, 'œ', 'oe'), 'Œ', 'oe'), 'æ', 'ae'), 'Æ', 'ae'), 'ß', 'ss'),
+        '“”øØłŁđĐ', '""oolldd') as v
+      from decomposed
     )
+  select pg_catalog.btrim(
+    pg_catalog.regexp_replace(pg_catalog.lower(v), E'[[:space:]\\u00a0]+', ' ', 'g')
   )
+  from folded
 $$;
 
 -- security invoker (the default, stated for clarity): RLS applies to the caller.

@@ -48,7 +48,7 @@ trap cleanup EXIT INT TERM
 if [ "${#RUN[@]}" -gt 0 ]; then chown postgres "$WORK"; fi
 "${RUN[@]}" mkdir "$SOCK"
 
-# UTF-8 with a real ctype so lower()/unaccent behave on non-ASCII text.
+# UTF-8 with a real ctype so lower() and normalize() behave on non-ASCII text.
 "${RUN[@]}" initdb -D "$DATA" -U postgres --auth=trust -E UTF8 --locale=C.UTF-8 >"$WORK/initdb.log" 2>&1 \
   || { cat "$WORK/initdb.log" >&2; exit 2; }
 

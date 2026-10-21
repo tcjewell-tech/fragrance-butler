@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(15);
 
 -- Tests insert their own rows and never depend on the seed contents.
 insert into public.fragrances (id, house, name, concentration, release_year) values
@@ -44,6 +44,16 @@ select is(
 
 select is(public.normalize_for_search(E'  Hermès\u00a0 Terre ‘d´hermes`  '), 'hermes terre ''d''hermes''',
   'normalize_for_search matches normalizeForSearch (accents, quotes, nbsp, trim)');
+
+-- Parity with normalizeForSearch (src/domain/search.ts): the same input and expected string are
+-- asserted in __tests__/domain/search.test.ts, which also checks this file still holds them.
+select is(public.normalize_for_search('Cœur Œillet Æther Ørsted Straße Łódź ﬁg “quoted” Hermès Terre d’Hermès'),
+  'coeur oeillet aether orsted strasse lodz fig "quoted" hermes terre d''hermes',
+  'normalize_for_search matches normalizeForSearch on Latin perfume text (ligatures, folds, curly quotes)');
+
+-- NFKD, not unaccent's rule table: compatibility characters and kana voicing marks fold as in the app.
+select is(public.normalize_for_search('ガ ２ ʼ ™'), 'カ 2 '' tm',
+  'normalize_for_search applies NFKD and strips kana voicing marks');
 
 select is((select count(*)::int from public.search_fragrances('')), 0, 'empty query returns 0 rows');
 select is((select count(*)::int from public.search_fragrances('   ')), 0, 'whitespace-only query returns 0 rows');
