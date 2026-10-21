@@ -7,7 +7,7 @@
  *   SUPABASE_TEST_ANON_KEY=<anon key from `supabase status`> \
  *   SUPABASE_TEST_EMAIL=<email of a confirmed test user> \
  *   SUPABASE_TEST_PASSWORD=<its password> \
- *   npm test -- supabase.integration
+ *   npm run test:integration
  *
  * The test user must already exist with a password (create it in Studio, or POST /auth/v1/admin/users
  * with the service-role key and email_confirm: true). The suite deletes ALL of that user's collection

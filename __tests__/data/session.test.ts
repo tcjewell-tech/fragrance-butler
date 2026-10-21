@@ -153,6 +153,16 @@ describe('session api', () => {
     });
     await createSessionApi(fake.client).deleteAccount();
     expect(order).toEqual(['rpc:delete_my_account', 'signOut']);
+    expect(fake.auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  test('deleteAccount still resolves when the sign-out after a successful deletion fails', async () => {
+    const fake = createFakeAuthClient();
+    fake.auth.signOut.mockResolvedValueOnce({ error: new TypeError('Network request failed') });
+    await expect(createSessionApi(fake.client).deleteAccount()).resolves.toBeUndefined();
+    fake.auth.signOut.mockRejectedValueOnce(new TypeError('Network request failed'));
+    await expect(createSessionApi(fake.client).deleteAccount()).resolves.toBeUndefined();
+    expect(fake.rpc).toHaveBeenCalledTimes(2);
   });
 
   test('deleteAccount does not sign out when the RPC fails', async () => {

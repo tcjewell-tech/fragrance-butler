@@ -13,6 +13,7 @@ module.exports = {
   },
   // Only *.test.* files are suites; __tests__/data/repositoryContract.ts and fixtures.ts are shared helpers.
   testMatch: ['**/__tests__/**/*.test.[jt]s?(x)'],
-  testPathIgnorePatterns: ['/node_modules/', '/.superpowers/'],
+  // *.integration.test.ts needs a real stack and plain Node: see jest.integration.config.js.
+  testPathIgnorePatterns: ['/node_modules/', '/.superpowers/', '\\.integration\\.test\\.'],
   modulePathIgnorePatterns: ['<rootDir>/.superpowers/'],
 };

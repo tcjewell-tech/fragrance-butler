@@ -38,7 +38,13 @@ export function createSessionApi(client: SupabaseClient) {
     async deleteAccount(): Promise<void> {
       const { error } = await client.rpc('delete_my_account');
       if (error) fail(error);
-      await signOut();
+      // The account is already gone, so a failure here must not be reported as a failed deletion.
+      // Local scope: there is nothing left on the server to revoke, and it works offline.
+      try {
+        await client.auth.signOut({ scope: 'local' });
+      } catch {
+        // ignored on purpose
+      }
     },
   };
 }

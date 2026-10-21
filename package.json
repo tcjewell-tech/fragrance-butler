@@ -39,6 +39,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest",
+    "test:integration": "jest -c jest.integration.config.js",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test:db": "bash scripts/test-db.sh",

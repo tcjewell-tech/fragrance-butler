@@ -101,6 +101,8 @@ describe('catalog', () => {
     });
     expect(created.isCustom).toBe(true);
     expect(queries[0].name).toBe('fragrances');
+    // Without .select() PostgREST returns no row, so the chain must read the inserted row back.
+    expect(methodsOf(queries[0])).toEqual(['insert', 'select', 'single']);
     expect(argsOf(queries[0], 'insert')?.[0]).toEqual({
       house: 'Le Labo',
       name: 'Santal 33',
@@ -153,6 +155,7 @@ describe('collection', () => {
     const found = setup(() => ({ data: entryRow() }));
     expect((await found.repos.collection.get('i1'))?.item.id).toBe('i1');
     expect(argsOf(found.queries[0], 'eq')).toEqual(['id', 'i1']);
+    expect(methodsOf(found.queries[0])).toEqual(['select', 'eq', 'maybeSingle']);
     const missing = setup(() => ({ data: null }));
     expect(await missing.repos.collection.get('nope')).toBeNull();
   });
@@ -225,6 +228,8 @@ describe('collection', () => {
         user_notes: null,
       });
       expect(argsOf(queries[0], 'eq')).toEqual(['id', 'i1']);
+      // Without .select() PostgREST returns no row, so the chain must read the updated row back.
+      expect(methodsOf(queries[0])).toEqual(['update', 'eq', 'select', 'maybeSingle']);
     });
 
     test('rejects when no row was updated (unknown id)', async () => {
