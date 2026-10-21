@@ -39,6 +39,15 @@ Without `SUPABASE_TEST_URL` the suite is skipped.
 
 Source imports can use the `@/*` alias, which maps to `src/*` (TypeScript and Jest both resolve it).
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`. There are two jobs:
+
+- **App:** `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`.
+- **Database:** installs Postgres 16 and pgTAP, then runs `npm run test:db`.
+
+The Supabase integration suite (`npm run test:integration`) is not run in CI, because it needs a real Supabase project.
+
 ## Releasing
 
 Building for TestFlight and the App Store needs your own Expo and Apple Developer accounts. Follow [`docs/release/testflight.md`](docs/release/testflight.md), then work through the [Phase 1 exit checklist](docs/phase-1-exit-checklist.md) on a real iPhone.
