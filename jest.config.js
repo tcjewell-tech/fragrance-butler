@@ -6,6 +6,7 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
+  setupFiles: ['<rootDir>/jest.setup.js'],
   transform: {
     // scripts/build-seed.mjs is an ES module under test; run it through the same Babel setup as .ts/.js.
     '\\.mjs$': expoPreset.transform['\\.[jt]sx?$'],

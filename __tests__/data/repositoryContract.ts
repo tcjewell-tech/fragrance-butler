@@ -37,7 +37,7 @@ export function runRepositoryContract(name: string, factory: () => Promise<Repos
 
       test('search groups concentration variants of the same fragrance', async () => {
         const groups = await h.catalog.search('sauvage');
-        const sauvage = groups.filter((g) => g.name === 'Sauvage');
+        const sauvage = groups.filter((g) => g.house === 'Dior' && g.name === 'Sauvage');
         expect(sauvage).toHaveLength(1);
         const ids = sauvage[0].variants.map((v) => v.id);
         expect(ids).toEqual(expect.arrayContaining([h.fixtures.sauvageEdtId, h.fixtures.sauvageEdpId]));
@@ -52,6 +52,12 @@ export function runRepositoryContract(name: string, factory: () => Promise<Repos
           const ids = groups.flatMap((g) => g.variants.map((v) => v.id));
           expect(ids).toContain(h.fixtures.hermesId);
         }
+      });
+
+      test('search finds a fragrance by its exact normalized house and name', async () => {
+        const groups = await h.catalog.search("hermes terre d'hermes");
+        const ids = groups.flatMap((g) => g.variants.map((v) => v.id));
+        expect(ids).toContain(h.fixtures.hermesId);
       });
 
       test('search matches across house and name', async () => {
@@ -116,6 +122,13 @@ export function runRepositoryContract(name: string, factory: () => Promise<Repos
         const a = await h.collection.add(input);
         const b = await h.collection.add(input);
         expect(b.id).toBe(a.id);
+        expect(await h.collection.list()).toHaveLength(1);
+      });
+
+      test('concurrent adds with the same clientRequestId create one bottle', async () => {
+        const input = newItem();
+        const [a, b] = await Promise.all([h.collection.add(input), h.collection.add(input)]);
+        expect(a.id).toBe(b.id);
         expect(await h.collection.list()).toHaveLength(1);
       });
 
