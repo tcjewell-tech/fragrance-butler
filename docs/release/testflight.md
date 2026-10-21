@@ -4,7 +4,11 @@ This guide takes you from a fresh checkout to friends and family testing the app
 
 Everything below needs your own Expo and Apple Developer accounts. The repository is already configured (`app.json`, `eas.json`); you only run the commands.
 
-## 0. Before your first build: check the bundle identifier
+## 0. Before your first build
+
+Three checks, all before the first `eas build`: the bundle identifier, the icon and splash screen, and Expo's own project checks.
+
+### The bundle identifier
 
 `app.json` sets `ios.bundleIdentifier` to `com.tcjewell.fragrancebutler`. This is a placeholder.
 
@@ -12,6 +16,25 @@ Everything below needs your own Expo and Apple Developer accounts. The repositor
 - It is permanent. Once the app record exists in App Store Connect, the bundle identifier cannot be changed. Changing it later means a new app.
 
 The app name ("Fragrance Butler"), slug (`fragrance-butler`) and URL scheme (`fragrancebutler`) are also set in `app.json`. The app is iPhone-only (`supportsTablet: false`), so Apple will not ask for iPad screenshots. It requests no device permissions (no camera, no location).
+
+### Icon and splash screen (required before Beta App Review)
+
+The repository still carries Expo's template artwork, and Apple can reject a build that ships a placeholder icon. The icon is yours to supply, so do this before you submit for Beta App Review (section 7):
+
+1. **Icon:** provide a **1024×1024 PNG with no transparency** (no alpha channel, no rounded corners; iOS rounds them) and save it over `assets/images/icon.png`. The path is already set in `app.json`.
+2. **Splash screen:** the background already uses the app's parchment colour (and the dark ink colour in dark mode). Replace `assets/images/splash-icon.png` with your own mark, or remove the Expo logo by deleting the `image` and `imageWidth` lines from the `expo-splash-screen` entry in `app.json`, which leaves a plain parchment splash.
+3. Commit the changes.
+
+### Check the project with Expo's tools
+
+Run these two commands from the repository folder and fix anything they report before the first build:
+
+```bash
+npx expo-doctor
+npx expo install --check
+```
+
+`expo-doctor` looks for configuration problems; `expo install --check` lists dependencies whose versions do not match the installed Expo SDK (and offers to fix them). Both need to reach Expo's servers, which was not possible in the environment where the app was written, so neither has ever been run.
 
 ## 1. Prerequisites
 
@@ -78,7 +101,18 @@ SUPABASE_TEST_PASSWORD=<test user password> \
 npm run test:integration
 ```
 
-All tests should pass. If you used a throwaway project, run `supabase link --project-ref <your real ref>` afterwards to point back at the real one.
+All tests should pass.
+
+**While you have the throwaway project, also check account deletion on hosted Supabase.** The automated tests prove it against plain Postgres only, and hosted Supabase protects its `auth` schema in its own ways:
+
+1. Sign in to the app (pointed at the throwaway project) as a **second** test user, not the integration-test user.
+2. Add a bottle, so the user has a row to lose.
+3. Open Settings, then Delete account, and confirm. (Or call `rpc('delete_my_account')` from a small script signed in as that user.)
+4. In Supabase Studio, confirm the user is gone from Authentication, Users, and that their rows are gone from `collection_items` (and any custom fragrances from `fragrances`).
+
+If the call fails with a permission error, do not ship: the fallback is an Edge Function that checks the caller's session and calls `auth.admin.deleteUser(user.id)` with the service-role key (kept as a function secret, never in the app), and the app's Delete account then calls that function instead of `rpc('delete_my_account')`.
+
+If you used a throwaway project, run `supabase link --project-ref <your real ref>` afterwards to point back at the real one.
 
 ### The starter catalog (your collection)
 
@@ -103,11 +137,17 @@ The app's search is backed by a catalog table. The repository ships with a **pla
    This rewrites `supabase/seed.sql` and stops with a clear message if a row is invalid. Commit both files.
 3. Load it into the hosted database. Simplest route: open Supabase, go to SQL Editor, paste the whole contents of `supabase/seed.sql`, and click Run. (Alternative from the terminal: `supabase db push --include-seed`.)
 
-**Run the seed once.** The catalog table has no duplicate guard, so running it twice doubles every entry. If you did that by mistake and nobody has signed up yet, run `delete from public.fragrances where created_by is null;` in the SQL Editor and seed again. Do not do this once testers have saved bottles, because their collection entries would be removed along with the catalog rows.
+**Re-seeding is safe and additive.** The seed file skips any catalog entry that already exists (same house, name and concentration, ignoring capital letters), so running it again never creates duplicates and never touches anyone's collection. To add fragrances later:
+
+1. Add the new rows to `supabase/seed/catalog.csv` (keep the existing rows; there is no need to remove them).
+2. Run `npm run seed:build`. It also stops you if two rows are the same fragrance once accents are ignored (for example `Hermes` and `Hermès`).
+3. Commit both files, then load `supabase/seed.sql` again exactly as in step 3 above.
+
+Removing a row from the CSV does **not** remove it from the database. Nothing needs to be deleted for normal catalog growth. If you truly must retire an entry, delete it in the SQL Editor (`delete from public.fragrances where created_by is null and house = '...' and name = '...' and concentration = '...';`). The database refuses to delete an entry that anyone has in their collection and shows a foreign key error. That is intended: it protects testers' collections, and nothing is lost when it happens.
 
 ## 2. Give the build your Supabase settings
 
-The app reads two public settings, `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Your local `.env` file is **not** uploaded to the build server, so they must be set in EAS. Without them the build installs but cannot sign in.
+The app reads two public settings, `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Your local `.env` file is **not** uploaded to the build server, so they must be set in EAS. Without them the app **crashes on launch** (it cannot create its connection to Supabase).
 
 ```bash
 npx eas-cli login
@@ -183,6 +223,7 @@ Beta App Review (external TestFlight) and, later, App Review must be able to sig
 
 1. Create a new email account used for nothing else, for example a free Gmail or Outlook address. **Turn off two-step verification (2FA) on it**, otherwise the reviewer cannot get into the mailbox.
 2. Check the sender works (section 1, "Set up your own email sender"). Sign in to the app once with this address and add a few bottles, so the reviewer sees a real collection.
+   **Then pre-test the mailbox login itself from a different network and device** (for example your phone on mobile data, not your home Wi-Fi), exactly as the reviewer will: open the provider's webmail, sign in with the username and password you will give Apple, and read the newest email. Providers often challenge a login from a new location (a verification code, "was this you?"), which would lock Apple's reviewer out. Complete any such challenge now, and if the provider keeps asking, pick one with lighter sign-in checks.
 3. In App Store Connect, enter the mailbox details in the **Sign-in required** username and password fields. These fields exist in both places, so fill them in for each:
    - TestFlight, Test Information (used by Beta App Review).
    - The App Store version page, App Review Information (used by App Review, later).
@@ -208,7 +249,7 @@ Builds expire after 90 days in TestFlight; upload a new one before then.
 
 ## 8. Troubleshooting
 
-- **"Supabase is not configured" or sign-in fails immediately on a built app:** the EAS environment variables (section 2) are missing or were set on a different environment from the profile you built with.
+- **The app crashes on launch, or you see "Supabase is not configured":** `EXPO_PUBLIC_SUPABASE_URL` or `EXPO_PUBLIC_SUPABASE_ANON_KEY` is missing from the build. Check the EAS environment variables (section 2) were set on the same environment as the profile you built with, then rebuild. It does not wait until sign-in to fail.
 - **No sign-in code arrives:** check spam; check Supabase email rate limits; set up your own SMTP provider (section 1).
 - **Email contains a link and no code:** the template still lacks `{{ .Token }}` (section 1). Check both Magic Link and Confirm signup.
 - **Build fails with a bundle identifier error:** the identifier must be unique across Apple. Choose another in `app.json`.
