@@ -88,3 +88,8 @@ export function parseCollectionItemPatch(x: unknown): CollectionItemPatch {
   const parsed = parseWith(collectionItemPatchSchema, x);
   return Object.fromEntries(Object.entries(parsed).filter(([, v]) => v !== undefined)) as CollectionItemPatch;
 }
+
+/** True for a whole number of millilitres from 1 to 1000: the same rule `parseNewCollectionItem` applies. */
+export function isValidBottleSizeMl(x: unknown): boolean {
+  return bottleSizeMl.safeParse(x).success;
+}

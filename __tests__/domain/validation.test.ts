@@ -1,4 +1,10 @@
-import { parseCollectionItemPatch, parseCustomFragrance, parseNewCollectionItem, ValidationError } from '@/domain/validation';
+import {
+  isValidBottleSizeMl,
+  parseCollectionItemPatch,
+  parseCustomFragrance,
+  parseNewCollectionItem,
+  ValidationError,
+} from '@/domain/validation';
 
 const valid = (over: Record<string, unknown> = {}) => ({
   clientRequestId: '3f2b8a52-7c1e-4d0a-9a53-0d1f6b0c9e11',
@@ -151,4 +157,9 @@ describe('parseCollectionItemPatch', () => {
       expect((e as ValidationError).field).toBe('bottleSizeMl');
     }
   });
+});
+
+describe('isValidBottleSizeMl', () => {
+  test.each([1, 30, 75, 1000])('accepts %p', (n) => expect(isValidBottleSizeMl(n)).toBe(true));
+  test.each([0, -5, 12.5, 1001, NaN, '50', null])('rejects %p', (n) => expect(isValidBottleSizeMl(n)).toBe(false));
 });
