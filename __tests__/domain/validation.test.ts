@@ -1,4 +1,4 @@
-import { parseCustomFragrance, parseNewCollectionItem, ValidationError } from '@/domain/validation';
+import { parseCollectionItemPatch, parseCustomFragrance, parseNewCollectionItem, ValidationError } from '@/domain/validation';
 
 const valid = (over: Record<string, unknown> = {}) => ({
   clientRequestId: '3f2b8a52-7c1e-4d0a-9a53-0d1f6b0c9e11',
@@ -99,6 +99,56 @@ describe('parseCustomFragrance', () => {
       throw new Error('should have thrown');
     } catch (e) {
       expect((e as ValidationError).field).toBe('concentration');
+    }
+  });
+});
+
+describe('parseCollectionItemPatch', () => {
+  test('accepts a partial patch and keeps absent fields absent', () => {
+    expect(parseCollectionItemPatch({ favorite: true })).toEqual({ favorite: true });
+    expect(parseCollectionItemPatch({})).toEqual({});
+  });
+
+  test('accepts every patchable field', () => {
+    expect(
+      parseCollectionItemPatch({ bottleSizeMl: 75, acquisitionDate: '2025-03-09', userNotes: ' gift ', favorite: false }),
+    ).toEqual({ bottleSizeMl: 75, acquisitionDate: '2025-03-09', userNotes: 'gift', favorite: false });
+  });
+
+  test.each([0, -5, 12.5, 1001])('rejects size %p', (s) =>
+    expect(() => parseCollectionItemPatch({ bottleSizeMl: s })).toThrow(ValidationError));
+
+  test('acquisition date is null or a valid YYYY-MM-DD', () => {
+    expect(parseCollectionItemPatch({ acquisitionDate: null })).toEqual({ acquisitionDate: null });
+    expect(() => parseCollectionItemPatch({ acquisitionDate: '09/03/2025' })).toThrow(ValidationError);
+    expect(() => parseCollectionItemPatch({ acquisitionDate: '2025-02-30' })).toThrow(ValidationError);
+  });
+
+  test('notes are trimmed, empty becomes null, over 2000 chars rejected', () => {
+    expect(parseCollectionItemPatch({ userNotes: '  gift  ' })).toEqual({ userNotes: 'gift' });
+    expect(parseCollectionItemPatch({ userNotes: '   ' })).toEqual({ userNotes: null });
+    expect(parseCollectionItemPatch({ userNotes: null })).toEqual({ userNotes: null });
+    expect(() => parseCollectionItemPatch({ userNotes: 'n'.repeat(2001) })).toThrow(ValidationError);
+  });
+
+  test('favorite must be a boolean', () =>
+    expect(() => parseCollectionItemPatch({ favorite: 'yes' })).toThrow(ValidationError));
+
+  test('drops undefined values and ignores unknown keys such as wearCount', () => {
+    expect(parseCollectionItemPatch({ favorite: undefined, wearCount: 99, userId: 'x' })).toEqual({});
+  });
+
+  test('rejects non-object input', () => {
+    expect(() => parseCollectionItemPatch(null)).toThrow(ValidationError);
+    expect(() => parseCollectionItemPatch('x')).toThrow(ValidationError);
+  });
+
+  test('error carries the offending field', () => {
+    try {
+      parseCollectionItemPatch({ bottleSizeMl: 0 });
+      throw new Error('should have thrown');
+    } catch (e) {
+      expect((e as ValidationError).field).toBe('bottleSizeMl');
     }
   });
 });
