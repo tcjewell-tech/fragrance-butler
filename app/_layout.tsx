@@ -54,6 +54,8 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="add/confirm" options={{ ...pushedHeader, title: butler.confirmTitle }} />
             <Stack.Screen name="add/custom" options={{ ...pushedHeader, title: butler.customTitle }} />
+            <Stack.Screen name="item/[id]" options={{ ...pushedHeader, title: butler.detailTitle }} />
+            <Stack.Screen name="settings" options={{ ...pushedHeader, title: butler.settingsTitle }} />
           </Stack.Protected>
         </Stack>
       </RepositoryProvider>

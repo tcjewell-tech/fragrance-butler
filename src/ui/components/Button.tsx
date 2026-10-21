@@ -7,7 +7,8 @@ export interface ButtonProps {
   onPress(): void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: 'primary' | 'quiet';
+  /** `danger` is quiet, in the warning colour: for destructive actions that must not draw the eye first. */
+  variant?: 'primary' | 'quiet' | 'danger';
 }
 
 export function Button({ label, onPress, disabled = false, loading = false, variant = 'primary' }: ButtonProps) {
@@ -37,7 +38,7 @@ export function Button({ label, onPress, disabled = false, loading = false, vari
         style={{
           fontFamily: fonts.display,
           fontSize: 17,
-          color: primary ? colors.parchment : colors.brass,
+          color: primary ? colors.parchment : variant === 'danger' ? colors.danger : colors.brass,
         }}
       >
         {text}
