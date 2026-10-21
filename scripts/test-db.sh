@@ -56,7 +56,8 @@ if [ "${#RUN[@]}" -gt 0 ]; then chown postgres "$WORK"; fi
   -o "-k $SOCK -p $PORT -c listen_addresses= -c fsync=off" start >/dev/null \
   || { cat "$WORK/postgres.log" >&2; exit 2; }
 
-export PGHOST="$SOCK" PGPORT="$PORT" PGUSER=postgres
+# Warnings and errors only: "schema already exists, skipping" notices from the shim are noise.
+export PGHOST="$SOCK" PGPORT="$PORT" PGUSER=postgres PGOPTIONS="-c client_min_messages=warning"
 DB=fragrance_test
 psql -X -q -v ON_ERROR_STOP=1 -d postgres -c "create database $DB" >/dev/null
 export PGDATABASE="$DB"
