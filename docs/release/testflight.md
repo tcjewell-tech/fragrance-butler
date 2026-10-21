@@ -53,7 +53,32 @@ The app signs people in with a **6-digit code** emailed to them. Supabase sends 
 
    `{{ .Token }}` is the 6-digit code. Do not rely on `{{ .ConfirmationURL }}` alone; the app has no link handling and the sign-in screen expects a code.
 4. In the Email provider settings, leave the OTP length at **6** (the default). The app only accepts 6 digits.
-5. **Email limits.** Supabase's built-in email sender is heavily rate-limited (a few emails per hour) and meant for testing. For friends and family, set up your own SMTP provider under Authentication, then SMTP Settings (Resend, Postmark, SendGrid and similar all work). Do this before inviting testers, or sign-in codes will stop arriving.
+5. **Set up your own email sender (required).** Supabase's built-in email sender only delivers to pre-authorised addresses, meaning members of your Supabase organisation or team. Friends, family and Apple's reviewer would receive no sign-in codes at all, so nobody could sign in. Sign up with any transactional email provider (Resend, Postmark and Amazon SES all work) and enter its SMTP details under Authentication, then SMTP settings. Do this before you invite anyone or complete section 6. Afterwards, raise the email rate limit under Authentication, then Rate Limits, because the default is low (a few emails per hour).
+
+### Check the database works (run the integration tests once)
+
+The normal tests use a stand-in for the database. Before your first release, run the database tests once against a real Supabase stack. **Do this before you replace the placeholder catalog** (next section). The tests look up three specific fragrances, which are in the placeholder catalog and probably not in yours:
+
+- Dior Sauvage EDT
+- Dior Sauvage EDP
+- Hermès Terre d’Hermès EDT
+
+If any of the three is missing, the tests stop at the start with "Seed catalog is missing ...". Pick one way to run them:
+
+- **Local with Docker:** run `supabase start`, then `supabase db reset`. This applies the migrations and loads `supabase/seed.sql` (still the placeholder). `supabase status` prints the local URL and anon key.
+- **A second, throwaway hosted project:** create one, then run `supabase link --project-ref <throwaway ref>` and `supabase db push --include-seed` (the `--include-seed` part loads the placeholder catalog). Do not use your real project: the tests empty the test user's collection.
+
+Create a dedicated test user with a password (Supabase Studio, Authentication, Add user, tick "Auto Confirm"), then:
+
+```bash
+SUPABASE_TEST_URL=<project URL> \
+SUPABASE_TEST_ANON_KEY=<anon key> \
+SUPABASE_TEST_EMAIL=<test user email> \
+SUPABASE_TEST_PASSWORD=<test user password> \
+npm run test:integration
+```
+
+All tests should pass. If you used a throwaway project, run `supabase link --project-ref <your real ref>` afterwards to point back at the real one.
 
 ### The starter catalog (your collection)
 
@@ -79,25 +104,6 @@ The app's search is backed by a catalog table. The repository ships with a **pla
 3. Load it into the hosted database. Simplest route: open Supabase, go to SQL Editor, paste the whole contents of `supabase/seed.sql`, and click Run. (Alternative from the terminal: `supabase db push --include-seed`.)
 
 **Run the seed once.** The catalog table has no duplicate guard, so running it twice doubles every entry. If you did that by mistake and nobody has signed up yet, run `delete from public.fragrances where created_by is null;` in the SQL Editor and seed again. Do not do this once testers have saved bottles, because their collection entries would be removed along with the catalog rows.
-
-### Run the integration tests once against a real database
-
-The normal tests use an in-memory fake. Before your first release, run the contract suite once against real Supabase. Pick one:
-
-- **Local with Docker:** run `supabase start`, then `supabase db reset` (applies migrations and seed). `supabase status` prints the local URL and anon key.
-- **A second, throwaway hosted project:** create one, run `supabase link` and `supabase db push` against it. Do not use your real project: the suite empties the test user's collection.
-
-Create a dedicated test user with a password (Supabase Studio, Authentication, Add user, tick "Auto Confirm"), then:
-
-```bash
-SUPABASE_TEST_URL=<project URL> \
-SUPABASE_TEST_ANON_KEY=<anon key> \
-SUPABASE_TEST_EMAIL=<test user email> \
-SUPABASE_TEST_PASSWORD=<test user password> \
-npm run test:integration
-```
-
-All tests should pass. If you are on a different project than before, run `supabase link` again afterwards to point back at the real one.
 
 ## 2. Give the build your Supabase settings
 
@@ -143,14 +149,15 @@ Complete these in App Store Connect before Beta App Review. All of it is under A
 
 ### App Privacy answers
 
-Answer "Yes, we collect data", then declare exactly two data types:
+Answer "Yes, we collect data", then declare these data types:
 
 | Data type | Category | Linked to the user? | Used for tracking? | Purpose |
 | --- | --- | --- | --- | --- |
 | Email Address | Contact Info | Yes | No | App Functionality |
 | Other User Content (the collection and notes) | User Content | Yes | No | App Functionality |
+| User ID | Identifiers | Yes | No | App Functionality |
 
-Nothing else is collected: no analytics, no advertising, no location, no device identifiers. The app contains no tracking, so you do not need an App Tracking Transparency prompt. If you later add analytics or a crash reporter, update this table first.
+The User ID is the account identifier Supabase assigns to each signed-in user. Nothing else is collected: no analytics, no advertising, no location. The app contains no tracking, so you do not need an App Tracking Transparency prompt. If you later add analytics or a crash reporter, update this table first.
 
 ### Privacy policy URL (required)
 
@@ -170,18 +177,21 @@ Apps that let people create an account must let them delete it inside the app. F
 
 ## 6. A demo account for Apple's reviewers
 
-Beta App Review (external TestFlight) and, later, App Review must be able to sign in. Sign-in is by emailed code, and Apple cannot read your inbox, so you have to arrange it. Options:
+Beta App Review (external TestFlight) and, later, App Review must be able to sign in. Sign-in is by emailed code, and Apple's reviewers will not wait for you to pass on a code. If they cannot get in, the usual result is a rejection under guideline 2.1 ("unable to sign in"). So give them a mailbox they can open themselves.
 
-1. **A dedicated reviewer mailbox you control (recommended).** Create a new address such as `fragrancebutler.review@yourdomain.com` (or a free Gmail or iCloud address). Give Apple that address in the review notes and keep the mailbox open on your phone during review, so you can read out the code when Apple asks. Codes expire, so reply promptly.
-2. **A password-based demo account.** This would need a password sign-in path added to the app. Do not add one just for review.
+**Recommended: a dedicated throwaway mailbox, used only for review.**
 
-Go with option 1. Pre-fill the account with a few bottles by signing in yourself first, so reviewers see a real collection. In App Store Connect, TestFlight, Test Information, fill in:
+1. Create a new email account used for nothing else, for example a free Gmail or Outlook address. **Turn off two-step verification (2FA) on it**, otherwise the reviewer cannot get into the mailbox.
+2. Check the sender works (section 1, "Set up your own email sender"). Sign in to the app once with this address and add a few bottles, so the reviewer sees a real collection.
+3. In App Store Connect, enter the mailbox details in the **Sign-in required** username and password fields. These fields exist in both places, so fill them in for each:
+   - TestFlight, Test Information (used by Beta App Review).
+   - The App Store version page, App Review Information (used by App Review, later).
+4. In the notes box next to them, write: "Sign-in is by a 6-digit code. Open the app, enter the email address above and tap Send code. Then open that mailbox (webmail, with the username and password above) and read the newest email from Fragrance Butler. Enter the 6-digit code in the app. Account deletion is at Settings, then Delete account. Contact: your email and phone number."
+5. Keep the mailbox alive for the lifetime of the app, because every future App Store review needs it. Do not use it for anything personal.
 
-- **Sign-in required:** yes.
-- **Demo account:** the reviewer address. In the notes, write: "Sign-in is by a 6-digit code sent to this address. The developer monitors this mailbox and will provide the code within minutes of a request. Contact: your email and phone number."
-- **Notes:** "Account deletion is at Settings, then Delete account."
+**Fallback only: relay the code yourself.** Give Apple an address that only you can read and say in the notes that you will supply the code on request. This is unreliable (codes expire, and reviewers rarely wait), so use it only if the shared mailbox is not possible.
 
-Keep this mailbox alive for the lifetime of the app, because every future App Store review needs it.
+**Not available today:** a password sign-in path, which would need a change to the app. A reviewer-only fixed code is a possible future improvement, but Supabase supports fixed test OTPs for phone numbers only, not email, so it would need extra work.
 
 ## 7. Add friends and family (external testers) and Beta App Review
 
