@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the pgTAP suites in supabase/tests against a throwaway local Postgres cluster.
-# No Docker needed. See supabase/tests/_supabase_shim.sql for what stands in for Supabase.
+# No Docker needed. See supabase/test-support/_supabase_shim.sql for what stands in for Supabase.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -66,7 +66,7 @@ load() {
   psql -X -q -v ON_ERROR_STOP=1 -f "$1" >/dev/null
 }
 
-load "$ROOT/supabase/tests/_supabase_shim.sql"
+load "$ROOT/supabase/test-support/_supabase_shim.sql"
 shopt -s nullglob
 for f in "$ROOT"/supabase/migrations/*.sql; do load "$f"; done
 if [ -f "$ROOT/supabase/seed.sql" ]; then load "$ROOT/supabase/seed.sql"; fi

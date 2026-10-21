@@ -1,9 +1,11 @@
 begin;
-select plan(12);
+select plan(13);
 
 -- Tests insert their own rows and never depend on the seed contents.
 insert into public.fragrances (id, house, name, concentration, release_year) values
   ('eeeeeeee-0000-4000-8000-000000000001', 'Hermès', 'Terre d’Hermès', 'EDT', 2006);
+insert into public.fragrances (id, house, name, concentration, release_year) values
+  ('eeeeeeee-0000-4000-8000-000000000002', 'Dior', 'Sauvage', 'EDT', 2015);
 insert into public.fragrances (house, name, concentration, release_year) values
   ('Zzqx Test House', 'Sauvage Zzqx', 'EDT', 2015),
   ('Zzqx Test House', 'Sauvage Zzqx', 'EDP', 2018),
@@ -27,6 +29,10 @@ select is(
 select is(
   (select count(*)::int from public.search_fragrances('  terre   d''hermes  ') where id = 'eeeeeeee-0000-4000-8000-000000000001'),
   1, 'whitespace runs are collapsed and trimmed');
+
+select is(
+  (select count(*)::int from public.search_fragrances('sauvge') where id = 'eeeeeeee-0000-4000-8000-000000000002'),
+  1, 'typo (sauvge) returns Dior Sauvage');
 
 select is(
   (select count(*)::int from public.search_fragrances('zzqx sauvge') where house = 'Zzqx Test House' and name = 'Sauvage Zzqx'),
