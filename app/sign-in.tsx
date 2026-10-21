@@ -13,6 +13,13 @@ const CODE_LENGTH = 6;
 
 type Step = 'email' | 'code';
 
+/** Supabase answers 429 when a code was sent too recently. The status rides on the RepositoryError's cause. */
+function isTooSoon(e: unknown): boolean {
+  if (!(e instanceof RepositoryError)) return false;
+  const cause = e.cause;
+  return typeof cause === 'object' && cause !== null && (cause as { status?: unknown }).status === 429;
+}
+
 export default function SignIn() {
   const { colors, fonts, spacing } = useTheme();
   const { signInWithEmailOtp, verifyEmailOtp } = useSessionApi();
@@ -20,6 +27,7 @@ export default function SignIn() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const trimmedEmail = email.trim();
@@ -29,21 +37,32 @@ export default function SignIn() {
       setError(butler.signInInvalidEmail);
       return;
     }
+    const resending = step === 'code';
     setError(null);
+    setNotice(null);
     setBusy(true);
     try {
       await signInWithEmailOtp(trimmedEmail);
       setCode('');
       setStep('code');
-    } catch {
-      setError(butler.signInFailed);
+      if (resending) setNotice(butler.signInCodeResent);
+    } catch (e) {
+      setError(isTooSoon(e) ? butler.signInTooSoon : butler.signInFailed);
     } finally {
       setBusy(false);
     }
   }
 
+  function changeEmail() {
+    setStep('email');
+    setCode('');
+    setError(null);
+    setNotice(null);
+  }
+
   async function verify() {
     setError(null);
+    setNotice(null);
     setBusy(true);
     try {
       await verifyEmailOtp(trimmedEmail, code);
@@ -106,6 +125,11 @@ export default function SignIn() {
         )}
 
         {error ? <ErrorBanner message={error} /> : null}
+        {notice ? (
+          <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.body, { color: colors.muted }]}>
+            {notice}
+          </Text>
+        ) : null}
 
         {step === 'email' ? (
           <Button label={butler.signInSendCode} onPress={sendCode} disabled={busy} />
@@ -113,6 +137,7 @@ export default function SignIn() {
           <>
             <Button label={butler.signInVerify} onPress={verify} disabled={busy || code.length !== CODE_LENGTH} />
             <Button label={butler.signInResend} onPress={sendCode} disabled={busy} variant="quiet" />
+            <Button label={butler.signInChangeEmail} onPress={changeEmail} disabled={busy} variant="quiet" />
           </>
         )}
       </KeyboardAvoidingView>

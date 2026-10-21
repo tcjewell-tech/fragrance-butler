@@ -65,6 +65,20 @@ describe('sign-in screen', () => {
     expect(screen.queryByLabelText(butler.signInCodeLabel)).toBeNull();
   });
 
+  test('HTTP 429 when sending shows the too-soon copy and stays on the email step', async () => {
+    const api = fakeApi({
+      signInWithEmailOtp: jest.fn(async () => {
+        throw new RepositoryError('unknown', 'rate limited', { cause: { status: 429 } });
+      }),
+    });
+    const user = await renderSignIn(api);
+    await user.type(emailInput(), 'tom@example.com');
+    await user.press(screen.getByRole('button', { name: butler.signInSendCode }));
+    expect(await screen.findByText(butler.signInTooSoon)).toBeOnTheScreen();
+    expect(screen.queryByText(butler.signInFailed)).toBeNull();
+    expect(screen.queryByLabelText(butler.signInCodeLabel)).toBeNull();
+  });
+
   describe('code step', () => {
     async function toCodeStep(api: SessionApi) {
       const user = await renderSignIn(api);
@@ -125,6 +139,85 @@ describe('sign-in screen', () => {
       await user.press(screen.getByRole('button', { name: butler.signInResend }));
       expect(api.signInWithEmailOtp).toHaveBeenCalledTimes(2);
       expect(api.signInWithEmailOtp).toHaveBeenLastCalledWith('tom@example.com');
+    });
+
+    test('a successful resend says so inline, and the note clears on the next action', async () => {
+      const user = await toCodeStep(fakeApi());
+      expect(screen.queryByText(butler.signInCodeResent)).toBeNull();
+      await user.press(screen.getByRole('button', { name: butler.signInResend }));
+      expect(await screen.findByText(butler.signInCodeResent)).toBeOnTheScreen();
+      await user.type(codeInput(), '123456');
+      await user.press(screen.getByRole('button', { name: butler.signInVerify }));
+      expect(screen.queryByText(butler.signInCodeResent)).toBeNull();
+    });
+
+    test('a failed resend shows the error, not the resent note', async () => {
+      let calls = 0;
+      const api = fakeApi({
+        signInWithEmailOtp: jest.fn(async () => {
+          if (++calls > 1) throw new RepositoryError('network', 'offline');
+        }),
+      });
+      const user = await toCodeStep(api);
+      await user.press(screen.getByRole('button', { name: butler.signInResend }));
+      expect(await screen.findByText(butler.signInFailed)).toBeOnTheScreen();
+      expect(screen.queryByText(butler.signInCodeResent)).toBeNull();
+    });
+
+    test('HTTP 429 on resend shows the too-soon copy and keeps the code step', async () => {
+      let calls = 0;
+      const api = fakeApi({
+        signInWithEmailOtp: jest.fn(async () => {
+          if (++calls > 1) throw new RepositoryError('unknown', 'rate limited', { cause: { status: 429 } });
+        }),
+      });
+      const user = await toCodeStep(api);
+      await user.press(screen.getByRole('button', { name: butler.signInResend }));
+      expect(await screen.findByText(butler.signInTooSoon)).toBeOnTheScreen();
+      expect(screen.getByLabelText(butler.signInCodeLabel)).toBeOnTheScreen();
+    });
+
+    test('a 429 on verify is still the generic failure, not "too soon"', async () => {
+      const api = fakeApi({
+        verifyEmailOtp: jest.fn(async () => {
+          throw new RepositoryError('unknown', 'rate limited', { cause: { status: 429 } });
+        }),
+      });
+      const user = await toCodeStep(api);
+      await user.type(codeInput(), '123456');
+      await user.press(screen.getByRole('button', { name: butler.signInVerify }));
+      expect(await screen.findByText(butler.signInFailed)).toBeOnTheScreen();
+    });
+
+    test('"Use a different email" returns to the email step, keeps the email, clears the code and the error', async () => {
+      const api = fakeApi({
+        verifyEmailOtp: jest.fn(async () => {
+          throw new RepositoryError('auth', 'expired');
+        }),
+      });
+      const user = await toCodeStep(api);
+      await user.type(codeInput(), '123456');
+      await user.press(screen.getByRole('button', { name: butler.signInVerify }));
+      await screen.findByText(butler.signInCodeInvalid);
+
+      await user.press(screen.getByRole('button', { name: butler.signInChangeEmail }));
+      expect(screen.queryByText(butler.signInCodeInvalid)).toBeNull();
+      expect(screen.queryByLabelText(butler.signInCodeLabel)).toBeNull();
+      expect(emailInput()).toHaveDisplayValue('tom@example.com');
+
+      await user.clear(emailInput());
+      await user.type(emailInput(), 'sam@example.com');
+      await user.press(screen.getByRole('button', { name: butler.signInSendCode }));
+      expect(api.signInWithEmailOtp).toHaveBeenLastCalledWith('sam@example.com');
+      expect(codeInput()).toHaveDisplayValue('');
+    });
+
+    test('changing the email also clears the resent note', async () => {
+      const user = await toCodeStep(fakeApi());
+      await user.press(screen.getByRole('button', { name: butler.signInResend }));
+      await screen.findByText(butler.signInCodeResent);
+      await user.press(screen.getByRole('button', { name: butler.signInChangeEmail }));
+      expect(screen.queryByText(butler.signInCodeResent)).toBeNull();
     });
   });
 });
