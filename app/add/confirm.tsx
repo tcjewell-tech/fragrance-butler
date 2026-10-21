@@ -43,6 +43,14 @@ export default function ConfirmScreen() {
   const { save, status } = useSaveBottle();
   // Success side effects (announce, go back) must run once however many presses reached `save`.
   const submitted = useRef(false);
+  // A save that outlives the screen must not pop whatever screen is on top by then.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,8 +96,8 @@ export default function ConfirmScreen() {
       captureMethod: 'manual',
     }).then(
       () => {
-        announceSaved();
-        router.back();
+        announceSaved(); // the bottle was added whether or not we are still here
+        if (mounted.current) router.back();
       },
       () => {
         submitted.current = false;

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useRepositories } from '@/data/RepositoryContext';
 import type { NewCollectionItem } from '@/domain/types';
+import { newId } from '@/lib/uuid';
 
 export type SaveStatus = 'idle' | 'saving' | 'error';
 
@@ -24,21 +25,24 @@ export function useSaveBottle(): SaveBottle {
   const save = useCallback(
     (input: Omit<NewCollectionItem, 'clientRequestId'>): Promise<void> => {
       if (inFlight.current) return inFlight.current;
-      clientRequestId.current ??= crypto.randomUUID();
-      const request = { ...input, clientRequestId: clientRequestId.current };
       setStatus('saving');
+      // Everything that can throw runs inside the promise, so any failure becomes a rejection.
       const run = (async () => {
         try {
-          await collection.add(request);
+          clientRequestId.current ??= newId();
+          await collection.add({ ...input, clientRequestId: clientRequestId.current });
           setStatus('idle');
         } catch (e) {
           setStatus('error');
           throw e;
-        } finally {
-          inFlight.current = null;
         }
       })();
       inFlight.current = run;
+      // Cleared after assignment: a failure before the first await settles `run` before this line runs.
+      const clear = () => {
+        inFlight.current = null;
+      };
+      run.then(clear, clear);
       return run;
     },
     [collection],

@@ -373,6 +373,41 @@ describe('confirm screen', () => {
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
+  test('if the request id cannot be generated, Save fails cleanly and a later Retry succeeds', async () => {
+    const { repos, user } = await renderConfirm({ house: 'Hermès', name: 'Terre d’Hermès', ids: hermesId });
+    jest.spyOn(jest.requireMock<{ randomUUID(): string }>('expo-crypto'), 'randomUUID').mockImplementationOnce(() => {
+      throw new Error('no crypto');
+    });
+    await user.press(await screen.findByRole('button', { name: butler.sizeLabel(50) }));
+    await user.press(saveButton());
+    expect(await screen.findByText(butler.saveFailed)).toBeOnTheScreen();
+    expect(button(butler.sizeLabel(50))).toBeSelected();
+    expect(mockRouter.back).not.toHaveBeenCalled();
+
+    await user.press(button(butler.retry));
+    await act(async () => {});
+    expect(await repos.collection.list()).toHaveLength(1);
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('a save that resolves after the screen is gone does not call back()', async () => {
+    const { repos, user } = await renderConfirm({ house: 'Hermès', name: 'Terre d’Hermès', ids: hermesId });
+    const pending = deferred<Awaited<ReturnType<typeof repos.collection.add>>>();
+    jest.spyOn(repos.collection, 'add').mockImplementationOnce(() => pending.promise);
+    await user.press(await screen.findByRole('button', { name: butler.sizeLabel(50) }));
+    await user.press(saveButton());
+    await screen.unmount();
+    const item = await createMemoryRepositories(fixtureCatalog).collection.add({
+      clientRequestId: crypto.randomUUID(),
+      fragranceId: hermesId,
+      bottleSizeMl: 50,
+      concentration: 'EDT',
+      captureMethod: 'manual',
+    });
+    await act(async () => pending.resolve(item));
+    expect(mockRouter.back).not.toHaveBeenCalled();
+  });
+
   test('shows the loading-failed banner when the fragrance cannot be read, and retry recovers', async () => {
     const repos = createMemoryRepositories(fixtureCatalog);
     jest.spyOn(repos.catalog, 'getById').mockRejectedValueOnce(new RepositoryError('network', 'offline'));
