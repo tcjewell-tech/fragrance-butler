@@ -23,4 +23,12 @@ describe.each([
   test.each(['ink', 'brass', 'muted', 'danger'] as const)('%s on parchment', (key) => {
     expect(contrast(colors[key], colors.parchment)).toBeGreaterThanOrEqual(4.5);
   });
+
+  test.each(['ink', 'brass', 'muted', 'danger'] as const)('%s on tray', (key) => {
+    expect(contrast(colors[key], colors.tray)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('parchment on brass (primary button label)', () => {
+    expect(contrast(colors.parchment, colors.brass)).toBeGreaterThanOrEqual(4.5);
+  });
 });

@@ -7,6 +7,7 @@ import type {
   FragranceGroup,
   NewCollectionItem,
 } from '@/domain/types';
+import type { Recommendation, RecommendationInput } from '@/domain/recommendation';
 
 export interface CatalogRepository {
   /** Substring match on house + name, grouped by concentration variants. `[]` for a blank query. */
@@ -31,7 +32,18 @@ export interface CollectionRepository {
   remove(itemId: string): Promise<void>;
 }
 
+export interface RecommendationRepository {
+  /**
+   * Asks the butler for two or three bottles from the caller's own collection. Rejects with
+   * ValidationError on a bad occasion, or when the reply breaks the contract (see parseRecommendation).
+   */
+  recommend(input: RecommendationInput): Promise<Recommendation>;
+  /** Records which pick the user chose to wear (the wear-tracking signal). Repeating it replaces the choice. */
+  recordSelection(requestId: string, itemId: string): Promise<void>;
+}
+
 export interface Repositories {
   catalog: CatalogRepository;
   collection: CollectionRepository;
+  recommendations: RecommendationRepository;
 }

@@ -13,6 +13,8 @@ cp .env.example .env   # then fill in the Supabase URL and anon key
 
 `.env` holds only public client configuration (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`). It is git-ignored; never commit it.
 
+Set `EXPO_PUBLIC_FEATURE_ASK=1` to show the Ask tab and the tray. Leave it off until the `recommend` and `record-selection` Edge Functions are deployed; their contract is in `docs/recommend-contract.md`.
+
 ## Scripts
 
 | Command | What it does |

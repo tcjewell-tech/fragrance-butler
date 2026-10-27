@@ -14,8 +14,9 @@ import {
   parseCustomFragrance,
   parseNewCollectionItem,
 } from '@/domain/validation';
+import { parseOccasion, parseRecommendation } from '@/domain/recommendation';
 import { RepositoryError, toRepositoryError } from './errors';
-import type { CatalogRepository, CollectionRepository, Repositories } from './repositories';
+import type { CatalogRepository, CollectionRepository, RecommendationRepository, Repositories } from './repositories';
 
 export { RepositoryError } from './errors';
 export type { RepositoryErrorKind } from './errors';
@@ -277,5 +278,42 @@ export function createSupabaseRepositories(client: SupabaseClient): Repositories
     },
   };
 
-  return { catalog, collection };
+  const recommendations: RecommendationRepository = {
+    async recommend(input) {
+      const body = {
+        occasion: parseOccasion(input.occasion),
+        timeOfDay: input.timeOfDay,
+        excludeItemIds: input.excludeItemIds ?? [],
+      };
+      return parseRecommendation(await invoke(client, 'recommend', body));
+    },
+
+    async recordSelection(requestId, itemId) {
+      await invoke(client, 'record-selection', { requestId, itemId });
+    },
+  };
+
+  return { catalog, collection, recommendations };
+}
+
+/**
+ * Calls an Edge Function and returns its JSON body, throwing a RepositoryError on failure. functions-js
+ * reports an unreachable function as FunctionsFetchError and a non-2xx reply as FunctionsHttpError
+ * whose `context` is the Response.
+ */
+async function invoke(client: SupabaseClient, name: string, body: Record<string, unknown>): Promise<unknown> {
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await client.functions.invoke(name, { body });
+  } catch (err) {
+    throw toRepositoryError(err);
+  }
+  const { error } = result;
+  if (!error) return result.data;
+  const errName = (error as { name?: unknown }).name;
+  if (errName === 'FunctionsFetchError' || errName === 'FunctionsRelayError') {
+    throw new RepositoryError('network', `The ${name} function could not be reached`, { cause: error });
+  }
+  const status = (error as { context?: { status?: unknown } }).context?.status;
+  throw toRepositoryError(error, typeof status === 'number' ? status : undefined);
 }

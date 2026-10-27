@@ -1,3 +1,14 @@
+import { OCCASION_MAX, type TimeOfDay } from '@/domain/recommendation';
+
+const TIME_LABEL: Record<TimeOfDay, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night' };
+const THIS: Record<TimeOfDay, string> = {
+  morning: 'this morning',
+  afternoon: 'this afternoon',
+  evening: 'this evening',
+  night: 'tonight',
+};
+const THE: Record<TimeOfDay, string> = { morning: 'the morning', afternoon: 'the afternoon', evening: 'the evening', night: 'the night' };
+
 /** All user-facing copy. Voice: deferential, concise, confident. The butler advises; the user decides. */
 export const butler = {
   emptyCollection: {
@@ -54,7 +65,34 @@ export const butler = {
   sizeOtherLabel: 'Size in ml',
   customSizeInvalid: 'A whole number of millilitres, 1 to 1000.',
   sizeLabel: (ml: number) => `${ml} ml`,
-  tabs: { collection: 'Collection', add: 'Add' },
+  tabs: { ask: 'Ask', collection: 'Collection', add: 'Add' },
+  askGreeting: (t: TimeOfDay) => (t === 'morning' ? 'Good morning.' : t === 'afternoon' ? 'Good afternoon.' : 'Good evening.'),
+  askOccasionLabel: 'Where are you headed?',
+  askOccasionPlaceholder: 'An office Christmas party, a black tie gala…',
+  askOccasionRequired: 'Tell me where you’re headed, and I’ll choose.',
+  askOccasionTooLong: `A little long — ${OCCASION_MAX} characters at most.`,
+  askConditions: (t: TimeOfDay) => TIME_LABEL[t],
+  askCta: 'What shall I wear?',
+  askTooFew: {
+    title: 'I’ll need a little more to choose from.',
+    body: 'Two bottles at least. Shall we add another?',
+    cta: 'Add a bottle',
+  },
+  askLoadFailed: 'I couldn’t reach your collection just now. Shall I try again?',
+  trayTitle: 'The tray',
+  trayChoosing: 'A moment.\nI’m choosing.',
+  trayGreeting: (t: TimeOfDay) => `For ${THIS[t]}, I’d suggest:`,
+  trayEnjoy: (t: TimeOfDay) => `Enjoy ${THE[t]}.`,
+  trayRank: ['First choice', 'Second', 'Third'] as const,
+  trayWear: 'Wear this',
+  trayWearLabel: (house: string, name: string) => `Wear ${house} ${name}`,
+  trayChosen: (t: TimeOfDay) => `Chosen for ${THIS[t]}.`,
+  trayOthers: 'Show me others',
+  trayChangeMind: 'Change my mind',
+  trayFailed: 'I couldn’t choose just now. Your collection is fine. Shall I try again?',
+  trayOthersFailed: 'I couldn’t find others just now. These are still yours to choose from.',
+  trayNoOthers: 'Those are the best I have for this.',
+  trayChooseFailed: 'I couldn’t note that just now. Nothing has changed.',
   settingsTitle: 'Settings',
   detailTitle: 'Bottle',
   sortHouse: 'House',

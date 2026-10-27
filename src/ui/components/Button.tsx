@@ -9,9 +9,18 @@ export interface ButtonProps {
   loading?: boolean;
   /** `danger` is quiet, in the warning colour: for destructive actions that must not draw the eye first. */
   variant?: 'primary' | 'quiet' | 'danger';
+  /** What a screen reader hears instead of the label, when the label alone is ambiguous ("Wear this"). */
+  accessibilityLabel?: string;
 }
 
-export function Button({ label, onPress, disabled = false, loading = false, variant = 'primary' }: ButtonProps) {
+export function Button({
+  label,
+  onPress,
+  disabled = false,
+  loading = false,
+  variant = 'primary',
+  accessibilityLabel,
+}: ButtonProps) {
   const { colors, fonts, spacing } = useTheme();
   const inactive = disabled || loading;
   const text = loading ? butler.saving : label;
@@ -20,7 +29,7 @@ export function Button({ label, onPress, disabled = false, loading = false, vari
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={text}
+      accessibilityLabel={loading ? text : (accessibilityLabel ?? text)}
       accessibilityState={{ disabled: inactive, busy: loading }}
       disabled={inactive}
       onPress={onPress}

@@ -9,6 +9,8 @@ export interface Colors {
   brass: string;
   /** Secondary text. */
   muted: string;
+  /** The tray's surface: the only raised surface. Always rimmed in brass; every text colour holds 4.5:1 on it. */
+  tray: string;
   danger: string;
 }
 
@@ -17,6 +19,7 @@ export const lightColors: Colors = {
   parchment: '#F6F0E1',
   brass: '#7A5710',
   muted: '#6B6254',
+  tray: '#ECE3CC',
   danger: '#A12B1E',
 };
 
@@ -25,6 +28,7 @@ export const darkColors: Colors = {
   parchment: '#15120E',
   brass: '#D0A650',
   muted: '#A99F8C',
+  tray: '#251F17',
   danger: '#EE8A78',
 };
 

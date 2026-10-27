@@ -5,7 +5,8 @@ import {
   parseCustomFragrance,
   parseNewCollectionItem,
 } from '@/domain/validation';
-import type { CatalogRepository, CollectionRepository, Repositories } from './repositories';
+import { parseOccasion, parseRecommendation } from '@/domain/recommendation';
+import type { CatalogRepository, CollectionRepository, RecommendationRepository, Repositories } from './repositories';
 
 const LOCAL_USER_ID = 'local-user';
 
@@ -132,5 +133,31 @@ export function createMemoryRepositories(seed: Fragrance[] = []): Repositories {
     },
   };
 
-  return { catalog, collection };
+  // Stands in for the `recommend` Edge Function: the first bottles not excluded, in collection order.
+  const requests = new Map<string, { itemIds: string[]; selection: string | null }>();
+
+  const recommendations: RecommendationRepository = {
+    async recommend(input) {
+      const occasion = parseOccasion(input.occasion);
+      const excluded = new Set(input.excludeItemIds ?? []);
+      const candidates = (await collection.list()).filter((e) => !excluded.has(e.item.id));
+      if (candidates.length < 2) throw new Error('Not enough bottles to choose from');
+      const requestId = crypto.randomUUID();
+      const picks = candidates.slice(0, 3).map((e) => ({
+        itemId: e.item.id,
+        rationale: `A sound choice for ${occasion.toLowerCase()} this ${input.timeOfDay}.`,
+      }));
+      requests.set(requestId, { itemIds: picks.map((p) => p.itemId), selection: null });
+      return parseRecommendation({ requestId, picks });
+    },
+
+    async recordSelection(requestId, itemId) {
+      const request = requests.get(requestId);
+      if (!request) throw new Error(`Unknown recommendation request ${requestId}`);
+      if (!request.itemIds.includes(itemId)) throw new Error(`Item ${itemId} was not offered in ${requestId}`);
+      request.selection = itemId;
+    },
+  };
+
+  return { catalog, collection, recommendations };
 }
