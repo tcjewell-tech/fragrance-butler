@@ -24,7 +24,7 @@
 - The collection must survive losing the device: Supabase is the source of truth (§5 Storage).
 - Audience: friends and family through TestFlight first, then the App Store. App Store guideline 5.1.1(v) requires that **an app that lets users create an account must let them delete it in the app**. Sign-in is email OTP only (Sign in with Apple is not required because no third-party social login is offered).
 - Starter catalog: built from Tom's own collection, supplied as `supabase/seed/catalog.csv`. Until it arrives, a ≤10-row placeholder CSV is used, with a `# PLACEHOLDER` first line.
-- Database tests must run without Docker. `npm run test:db` creates a throwaway local Postgres 16 cluster, loads `supabase/tests/_supabase_shim.sql` (which stands in for Supabase's `auth` schema, `auth.uid()` and the `anon`/`authenticated` roles), applies the migrations and seed, then runs `pg_prove supabase/tests/*.test.sql`. The same files also work with `supabase test db` wherever Docker is available.
+- Database tests must run without Docker. `npm run test:db` creates a throwaway local Postgres 16 cluster, loads `supabase/test-support/_supabase_shim.sql` (which stands in for Supabase's `auth` schema, `auth.uid()` and the `anon`/`authenticated` roles), applies the migrations and seed, then runs `pg_prove supabase/tests/*.test.sql`. The same files also work with `supabase test db` wherever Docker is available.
 
 ## Review Focus
 
@@ -65,7 +65,7 @@ supabase/seed/catalog.csv         starter catalog (Tom's collection)
 supabase/seed.sql                 GENERATED from catalog.csv, committed
 scripts/build-seed.mjs            catalog.csv → seed.sql
 scripts/test-db.sh                throwaway Postgres + pg_prove
-supabase/tests/_supabase_shim.sql auth schema/roles stand-in (local only)
+supabase/test-support/_supabase_shim.sql auth schema/roles stand-in (local only)
 supabase/tests/0001_rls.test.sql
 supabase/tests/0002_search.test.sql
 supabase/tests/0003_delete_account.test.sql
@@ -180,7 +180,7 @@ test('favorites sort puts favorites first, then house order', …);
 ### Task 3: Supabase schema, RLS, search function, seed catalog
 
 **Files:**
-- Create: `supabase/config.toml` (via `npx supabase init`), `supabase/migrations/0001_init.sql`, `supabase/seed/catalog.csv`, `scripts/build-seed.mjs`, `supabase/seed.sql` (generated), `scripts/test-db.sh`, `supabase/tests/_supabase_shim.sql`, `supabase/tests/0001_rls.test.sql`, `supabase/tests/0002_search.test.sql`, `supabase/tests/0003_delete_account.test.sql`, `__tests__/scripts/buildSeed.test.ts`
+- Create: `supabase/config.toml` (via `npx supabase init`), `supabase/migrations/0001_init.sql`, `supabase/seed/catalog.csv`, `scripts/build-seed.mjs`, `supabase/seed.sql` (generated), `scripts/test-db.sh`, `supabase/test-support/_supabase_shim.sql`, `supabase/tests/0001_rls.test.sql`, `supabase/tests/0002_search.test.sql`, `supabase/tests/0003_delete_account.test.sql`, `__tests__/scripts/buildSeed.test.ts`
 - Modify: `package.json` scripts: `"test:db": "bash scripts/test-db.sh"`, `"seed:build": "node scripts/build-seed.mjs"`
 
 **Interfaces:**
