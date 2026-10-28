@@ -65,6 +65,22 @@ describe('memory recommendations', () => {
     await expect(repos.recommendations.recordSelection(rec.requestId, 'not-offered')).rejects.toThrow();
     await expect(repos.recommendations.recordSelection('unknown', rec.picks[0].itemId)).rejects.toThrow();
   });
+
+  test('choosing counts a wear, and a change of mind moves it', async () => {
+    const { repos, itemIds } = await withBottles([sauvageEdtId, hermesId, sauvageEdpId]);
+    const rec = await repos.recommendations.recommend({ occasion: 'The office', timeOfDay: 'morning' });
+    const wears = async () =>
+      Object.fromEntries((await repos.collection.list()).map((e) => [e.item.id, e.item.wearCount]));
+    const [first, second] = rec.picks.map((p) => p.itemId);
+    await repos.recommendations.recordSelection(rec.requestId, first);
+    await repos.recommendations.recordSelection(rec.requestId, first);
+    expect((await wears())[first]).toBe(1);
+    await repos.recommendations.recordSelection(rec.requestId, second);
+    const after = await wears();
+    expect(after[first]).toBe(0);
+    expect(after[second]).toBe(1);
+    expect(itemIds).toContain(second);
+  });
 });
 
 describe('supabase recommendations', () => {
@@ -127,14 +143,20 @@ describe('supabase recommendations', () => {
     expect(err.kind).toBe('auth');
   });
 
-  test('records a selection through the record-selection function', async () => {
-    const { invoke, repos } = setup({ data: null, error: null });
+  function setupRpc(result: { data: unknown; error: unknown; status?: number }) {
+    const rpc = jest.fn(async () => result);
+    const client = { rpc } as unknown as SupabaseClient;
+    return { rpc, repos: createSupabaseRepositories(client) };
+  }
+
+  test('records a selection through record_recommendation_selection', async () => {
+    const { rpc, repos } = setupRpc({ data: null, error: null });
     await repos.recommendations.recordSelection('req-1', 'i2');
-    expect(invoke).toHaveBeenCalledWith('record-selection', { body: { requestId: 'req-1', itemId: 'i2' } });
+    expect(rpc).toHaveBeenCalledWith('record_recommendation_selection', { request_id: 'req-1', item_id: 'i2' });
   });
 
   test('a failed selection rejects with a RepositoryError', async () => {
-    const { repos } = setup({ data: null, error: new FunctionsHttpError({ status: 500 }) });
+    const { repos } = setupRpc({ data: null, error: { message: 'that bottle was not offered', code: '22023' }, status: 400 });
     await expect(repos.recommendations.recordSelection('req-1', 'i2')).rejects.toBeInstanceOf(RepositoryError);
   });
 });

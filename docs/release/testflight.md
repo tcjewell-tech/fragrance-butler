@@ -61,6 +61,18 @@ You need all of these before building.
 
    `supabase link` asks for the database password. `supabase db push` applies everything in `supabase/migrations` (the tables, security rules, search and account deletion).
 
+### The butler's recommendations (Ask tab)
+
+The Ask tab is hidden (`EXPO_PUBLIC_FEATURE_ASK` is off) until you complete these steps. Skip this section for a collection-only build.
+
+1. **Add the Anthropic API key as a function secret** named exactly `ANTHROPIC_API_KEY`: in the Supabase dashboard, open Edge Functions, then Secrets. Or from the repository folder: `supabase secrets set ANTHROPIC_API_KEY=<your key>`. The key lives only on the server. Never put it in the app, `.env`, `eas.json` or the repository.
+2. **Apply the new table**: `supabase db push` (adds `recommendation_requests` and `record_recommendation_selection`).
+3. **Deploy the function**: `supabase functions deploy recommend`.
+4. **Score the evals** (once, and again after any change to the prompt or model): `ANTHROPIC_API_KEY=<your key> npm run evals`. It costs about $0.50 and writes a results file in `evals/recommend/results/`. Score each scenario 1–5. The two tuxedo scenarios must pass.
+5. **Turn the tab on**: `npx eas-cli env:create --environment production --name EXPO_PUBLIC_FEATURE_ASK --value 1 --visibility plaintext` (and the same for any other environment you build), then build again.
+
+Before external testers use it, update the privacy answers and policy in section 5: occasions are sent to Anthropic to choose the bottles.
+
 ### Email sign-in (OTP) in Supabase Auth
 
 The app signs people in with a **6-digit code** emailed to them. Supabase sends a magic link by default, so you must change the email template.
@@ -206,6 +218,7 @@ Apple requires a public privacy policy URL, even for TestFlight external testing
 - **What is stored:** the email address used to sign in, and the collection the user creates (fragrances, bottle sizes, notes, favourites).
 - **Where:** in a Supabase-hosted database. Name Supabase as the service provider and state the region of your project.
 - **How it is used:** only to run the app. No selling, sharing or advertising use. No tracking.
+- **If the Ask tab is on:** the occasion the user types, and their collection, are sent to Anthropic (Claude) to choose the bottles. Anthropic acts as a service provider. Each request and the bottle the user chose are stored in the database, to improve recommendations later.
 - **Deletion:** users can delete their account and all their data in the app (Settings, then Delete account). Deletion is permanent.
 - **Contact:** an email address people can write to.
 

@@ -289,7 +289,11 @@ export function createSupabaseRepositories(client: SupabaseClient): Repositories
     },
 
     async recordSelection(requestId, itemId) {
-      await invoke(client, 'record-selection', { requestId, itemId });
+      await run(
+        client.rpc('record_recommendation_selection', { request_id: requestId, item_id: itemId }) as PromiseLike<
+          Result<null>
+        >,
+      );
     },
   };
 

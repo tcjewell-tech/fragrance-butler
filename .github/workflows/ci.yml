@@ -42,3 +42,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             postgresql-16 postgresql-16-pgtap libtap-parser-sourcehandler-pgtap-perl
       - run: npm run test:db
+
+  functions:
+    name: Edge Functions (deno check)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: npm run check:functions

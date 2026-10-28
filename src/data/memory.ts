@@ -155,6 +155,13 @@ export function createMemoryRepositories(seed: Fragrance[] = []): Repositories {
       const request = requests.get(requestId);
       if (!request) throw new Error(`Unknown recommendation request ${requestId}`);
       if (!request.itemIds.includes(itemId)) throw new Error(`Item ${itemId} was not offered in ${requestId}`);
+      const chosen = items.get(itemId);
+      if (!chosen) throw new Error(`Item ${itemId} is no longer in the collection`);
+      if (request.selection === itemId) return;
+      // As record_recommendation_selection does: the wear moves with a change of mind.
+      const previous = request.selection ? items.get(request.selection) : undefined;
+      if (previous) items.set(previous.id, { ...previous, wearCount: Math.max(previous.wearCount - 1, 0) });
+      items.set(itemId, { ...chosen, wearCount: chosen.wearCount + 1 });
       request.selection = itemId;
     },
   };
