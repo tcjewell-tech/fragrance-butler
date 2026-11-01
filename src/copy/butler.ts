@@ -27,6 +27,7 @@ export const butler = {
   saved: 'Added to your collection.',
   saveFailed: 'I couldn’t save that just now. Your selection is kept. Try again when ready.',
   loadFailed: 'I couldn’t reach your collection. Pull to try again.',
+  storageUnreadable: 'I couldn’t read the collection saved on this phone, so I have left it untouched. Please close and reopen the app.',
   searchFailed: 'I couldn’t search the catalog just now. Shall I try again?',
   bottleLoadFailed: 'I couldn’t open that bottle just now. Shall I try again?',
   favoriteFailed: 'I couldn’t update that just now. Nothing has changed.',
