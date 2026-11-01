@@ -17,7 +17,9 @@ In scope:
 - A bundled starter catalog generated from `supabase/seed/catalog.csv`.
 - "Back up collection" and "Restore from backup" in Settings, using a JSON file.
 
-Out of scope: sync between devices, automatic or scheduled backups, backup reminders, encryption, an "erase all data" action, and the Ask feature in local mode.
+- A backup reminder on the Collection tab once 3 or more bottles have been added since the last backup (or ever, if never backed up).
+
+Out of scope: sync between devices, automatic or scheduled backups, encryption, an "erase all data" action, and the Ask feature in local mode.
 
 ## Assumptions
 
@@ -36,11 +38,11 @@ Out of scope: sync between devices, automatic or scheduled backups, backup remin
 `createMemoryRepositories` (`src/data/memory.ts`) already implements validation, idempotent add and unknown-id handling, and the existing tests (`__tests__/data/memory.test.ts`) pin that behaviour. Local repositories reuse it rather than duplicate it:
 
 - `createMemoryRepositories` gains an optional second argument `{ initial?: PersistedState; onChange?: (state: PersistedState) => void }`. `PersistedState` holds the custom fragrances, the collection items and the `clientRequestId` to item id map (so a retried add stays idempotent after a restart).
-- `onChange` is called after every successful mutation (`createCustom`, `add`, `update`, `remove`). Existing callers pass nothing and behave as before.
+- `onChange` (which may return a promise) runs after every mutation that changes state (`createCustom`, `add`, `update`, `remove`, `recordSelection`), and the repository method waits for it. If it rejects, the mutation is rolled back and the method rejects with `RepositoryError('unknown')`, so a failed save never looks like a success. Mutations are applied one at a time. Existing callers pass nothing and behave as before.
 - New `src/data/local.ts` exports `createLocalRepositories(storage)`. It reads one AsyncStorage key (`fragrance-butler:v1`), validates it with zod, builds the repositories seeded with the bundled catalog plus the saved custom fragrances, and writes the state back through `onChange`. Writes are serialised so two quick changes cannot land out of order.
 - A missing key means an empty collection. A present but unreadable value is not overwritten: the app surfaces a `RepositoryError('unknown')` so the data is not silently lost.
 - The `userId` on items is the constant local user id the memory repositories already use.
-- Because `memory.ts` uses `crypto.randomUUID()`, confirm it exists on the React Native runtime; otherwise use `src/lib/uuid.ts`.
+- `memory.ts` calls `crypto.randomUUID()`, which Hermes does not have (see `src/lib/uuid.ts`). It switches to `newId()` from `src/lib/uuid.ts`; this is required, not optional.
 
 ### 3. Bundled catalog
 
@@ -54,7 +56,7 @@ In `app/_layout.tsx`, when `features.localMode` is on:
 - The `Stack.Protected` guards treat the user as signed in, so the sign-in screen is unreachable.
 - Settings hides Sign out and Delete account (no account exists) and shows the backup section.
 
-`src/data/supabaseClient.ts` throws at import when the Supabase variables are missing, so in local mode it must not be imported. The layout loads the Supabase modules only on the non-local path (a conditional `require`, or splitting the two providers into separate modules). The plan decides which; the requirement is that a local build runs with no Supabase variables set.
+`src/data/supabaseClient.ts` is already lazy: importing it never throws, and the client is created on first use. So the requirement is that a local build never *uses* it: the root layout splits into a local root and a Supabase root, and only the Supabase root calls `useSession`, the auto-refresh effect and `createSupabaseRepositories`. A local build runs with no Supabase variables set.
 
 ### 5. Backup file
 
@@ -92,13 +94,17 @@ Two buttons under a "Backup" section, visible only in local mode, in the butler'
 - **Restore from backup:** opens `expo-document-picker` (JSON), reads the file, runs `parseBackup` then `planRestore`, applies it, and shows a summary such as "Added 12 bottles, 3 were already here." If bottles were skipped for a missing fragrance, the summary says how many.
 - An invalid, unreadable or too-new file shows a plain message and changes nothing. A cancelled share sheet or picker is not an error.
 
+### 7. Backup reminder
+
+A banner at the top of the Collection tab, local mode only: "You have N bottles not yet backed up" with a "Back up" button that opens Settings and a "Not now" button that hides it until the app is next opened. It shows when the number of items created after the last backup is 3 or more (`BACKUP_REMINDER_THRESHOLD = 3`; if never backed up, every item counts). The last-backup time is stored under its own key, `fragrance-butler:last-backup`, and is written only after the share sheet opens without error (the share sheet cannot report whether the user actually saved the file). Restoring a backup does not touch it, so a freshly restored phone may show the banner once; backing up clears it.
+
 ## Testing
 
 - `createMemoryRepositories` with `initial`/`onChange`: `onChange` fires once per mutation with the expected state; `initial` round-trips; existing memory tests still pass unchanged.
 - `createLocalRepositories` with a fake in-memory storage adapter: persists across a simulated restart; idempotent add survives a restart; a corrupt stored value is not overwritten; writes stay ordered.
 - `backup.ts` unit tests: build/parse round trip; rejects bad format, newer version, malformed JSON and malformed entries; merge adds missing items, leaves present items untouched, skips items with an unresolvable fragrance, brings back custom fragrances, and is idempotent when applied twice.
 - Catalog seed: `seed:build` output is deterministic and ids are stable across runs.
-- UI: Settings shows the backup section only in local mode and hides account actions; the share and picker calls are mocked.
+- UI: Settings shows the backup section only in local mode and hides account actions; the share and picker calls are mocked. The reminder shows at 3 unbacked bottles, not at 2, and "Not now" hides it.
 - A local-mode smoke check that the app starts with no Supabase variables set.
 
 ## Documentation
@@ -107,6 +113,4 @@ Two buttons under a "Backup" section, visible only in local mode, in the butler'
 
 ## Open items for the plan
 
-- The mechanism that keeps Supabase modules out of the local build (section 4).
-- Whether the three Expo packages install cleanly at the pinned SDK.
-- Whether `crypto.randomUUID()` is available at runtime (section 2).
+- Whether the three Expo packages install cleanly at the pinned SDK, and the exact `expo-file-system` API at that version (read the installed package's types).
