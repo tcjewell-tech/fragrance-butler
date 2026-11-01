@@ -39,6 +39,18 @@ export const butler = {
   deleteAccountConfirm: 'This permanently removes your account and your entire collection. It cannot be undone.',
   deleteAccountConfirmCta: 'Delete permanently',
   deleteAccountFailed: 'I couldn’t delete your account just now. Nothing has been removed. Please try again.',
+  backupSection: 'Backup',
+  backUpCta: 'Back up collection',
+  backUpDone: 'Your backup is ready. Keep the file somewhere safe, such as Files or iCloud Drive.',
+  backUpFailed: 'I couldn’t prepare the backup just now. Nothing has changed. Please try again.',
+  restoreCta: 'Restore from backup',
+  restoreDone: ({ added, alreadyPresent }: { added: number; alreadyPresent: number }) =>
+    `Added ${added} ${added === 1 ? 'bottle' : 'bottles'}` +
+    (alreadyPresent > 0 ? `; ${alreadyPresent} ${alreadyPresent === 1 ? 'was' : 'were'} already here.` : '.'),
+  restoreSkipped: (n: number) =>
+    `${n} ${n === 1 ? 'bottle' : 'bottles'} could not be matched to a fragrance I know, so I left ${n === 1 ? 'it' : 'them'} out.`,
+  restoreBadFile: 'That file isn’t a backup I can read. Nothing has changed.',
+  restoreFailed: 'I couldn’t restore just now. Nothing has changed. Please try again.',
   signInTitle: 'Good day.',
   signInBody: 'Your email, and I’ll send a sign-in code.',
   signInEmailLabel: 'Email',
