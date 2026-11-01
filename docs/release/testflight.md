@@ -41,7 +41,7 @@ npx expo-doctor
 npx expo install --check
 ```
 
-`expo-doctor` looks for configuration problems; `expo install --check` lists dependencies whose versions do not match the installed Expo SDK (and offers to fix them). Both need to reach Expo's servers, which was not possible in the environment where the app was written, so neither has ever been run.
+`expo-doctor` looks for configuration problems; `expo install --check` lists dependencies whose versions do not match the installed Expo SDK (and offers to fix them). Both need to reach Expo's servers. On 2026-11-01 both passed (20/20 checks, dependencies up to date); run them again before each build, since a newer Expo patch can open new mismatches.
 
 ## 1. Prerequisites
 
