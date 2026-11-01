@@ -2,6 +2,8 @@ import { act, render, screen, userEvent } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { RepositoryError } from '@/data/errors';
 import { createMemoryRepositories } from '@/data/memory';
+import { BackupApiProvider } from '@/data/BackupApiContext';
+import type { BackupApi } from '@/data/backupApi';
 import { RepositoryProvider } from '@/data/RepositoryContext';
 import type { Repositories } from '@/data/repositories';
 import { butler } from '@/copy/butler';
@@ -237,5 +239,47 @@ describe('collection screen', () => {
     await act(async () => first.reject(new Error('late')));
     expect(screen.queryByText(butler.loadFailed)).toBeNull();
     expect(screen.getByText('Dior · Sauvage')).toBeOnTheScreen();
+  });
+});
+
+describe('collection screen backup reminder', () => {
+  const backupApi = (count: number): BackupApi => ({
+    backUp: jest.fn(async () => true),
+    restore: jest.fn(async () => null),
+    unbackedCount: jest.fn(async () => count),
+  });
+
+  async function renderWithBackup(api: BackupApi) {
+    const { wrap, user } = setup();
+    await render(wrap(<BackupApiProvider value={api}>{<CollectionScreen />}</BackupApiProvider>));
+    return user;
+  }
+
+  test('shows the banner at 3 unbacked bottles, and Back up opens Settings', async () => {
+    const user = await renderWithBackup(backupApi(3));
+    expect(await screen.findByText(butler.backupReminder(3))).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: butler.backupReminderCta }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+  });
+
+  test('does not show it at 2', async () => {
+    const api = backupApi(2);
+    await renderWithBackup(api);
+    await screen.findByText(butler.emptyCollection.title);
+    expect(api.unbackedCount).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: butler.backupReminderCta })).toBeNull();
+  });
+
+  test('Not now hides it', async () => {
+    const user = await renderWithBackup(backupApi(5));
+    await user.press(await screen.findByRole('button', { name: butler.backupReminderDismiss }));
+    expect(screen.queryByText(butler.backupReminder(5))).toBeNull();
+  });
+
+  test('does not show it when there is no backup API', async () => {
+    const { wrap } = setup();
+    await render(wrap(<CollectionScreen />));
+    await screen.findByText(butler.emptyCollection.title);
+    expect(screen.queryByRole('button', { name: butler.backupReminderCta })).toBeNull();
   });
 });

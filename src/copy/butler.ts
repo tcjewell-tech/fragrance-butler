@@ -49,7 +49,10 @@ export const butler = {
     (alreadyPresent > 0 ? `; ${alreadyPresent} ${alreadyPresent === 1 ? 'was' : 'were'} already here.` : '.'),
   restoreSkipped: (n: number) =>
     `${n} ${n === 1 ? 'bottle' : 'bottles'} could not be matched to a fragrance I know, so I left ${n === 1 ? 'it' : 'them'} out.`,
-  restoreBadFile: 'That file isn’t a backup I can read. Nothing has changed.',
+  backupReminder: (n: number) => `You have ${n} ${n === 1 ? 'bottle' : 'bottles'} not yet backed up.`,
+  backupReminderCta: 'Back up',
+  backupReminderDismiss: 'Not now',
+  restoreBadFile:'That file isn’t a backup I can read. Nothing has changed.',
   restoreFailed: 'I couldn’t restore just now. Nothing has changed. Please try again.',
   signInTitle: 'Good day.',
   signInBody: 'Your email, and I’ll send a sign-in code.',

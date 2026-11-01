@@ -3,9 +3,11 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { butler } from '@/copy/butler';
+import { useBackupApi } from '@/data/BackupApiContext';
 import { useRepositories } from '@/data/RepositoryContext';
 import { sortCollection, type SortMode } from '@/domain/collectionView';
 import type { CollectionEntry } from '@/domain/types';
+import { BackupReminder } from '@/ui/components/BackupReminder';
 import { Chip } from '@/ui/components/Chip';
 import { EmptyState } from '@/ui/components/EmptyState';
 import { ErrorBanner } from '@/ui/components/ErrorBanner';
@@ -29,6 +31,10 @@ export default function CollectionScreen() {
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [sort, setSort] = useState<SortMode>('house');
+  const backupApi = useBackupApi();
+  const [unbacked, setUnbacked] = useState(0);
+  // Component state, so "Not now" lasts until the app is next opened.
+  const [reminderDismissed, setReminderDismissed] = useState(false);
   // Each load takes a number; only the newest may write results.
   const latest = useRef(0);
 
@@ -53,7 +59,9 @@ export default function CollectionScreen() {
   useFocusEffect(
     useCallback(() => {
       void load(false);
-    }, [load]),
+      // The reminder is a nudge: if the count cannot be read, it simply does not show.
+      backupApi?.unbackedCount().then(setUnbacked, () => setUnbacked(0));
+    }, [load, backupApi]),
   );
 
   const sorted = useMemo(() => (entries ? sortCollection(entries, sort) : []), [entries, sort]);
@@ -78,6 +86,15 @@ export default function CollectionScreen() {
           <Chip key={mode} label={label} selected={sort === mode} onPress={() => setSort(mode)} />
         ))}
       </View>
+      {backupApi && !reminderDismissed ? (
+        <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
+          <BackupReminder
+            count={unbacked}
+            onBackUp={() => router.push('/settings')}
+            onDismiss={() => setReminderDismissed(true)}
+          />
+        </View>
+      ) : null}
       <FlatList
         testID="collection-list"
         data={sorted}
