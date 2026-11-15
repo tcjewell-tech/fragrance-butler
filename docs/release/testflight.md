@@ -4,6 +4,13 @@ This guide takes you from a fresh checkout to friends and family testing the app
 
 Everything below needs your own Expo and Apple Developer accounts. The repository is already configured (`app.json`, `eas.json`); you only run the commands.
 
+> **Local mode (no backend).** If you build with `EXPO_PUBLIC_LOCAL_MODE=1` (see [local-mode.md](../local-mode.md)), the collection stays on the phone and several steps fall away:
+>
+> - **Skip** section 1's Supabase project, email sign-in and integration-test steps, section 2 (Supabase settings in EAS) and section 6 (demo mailbox: there is no sign-in).
+> - **Instead**, set the flag in EAS: `npx eas-cli env:create --environment production --name EXPO_PUBLIC_LOCAL_MODE --value 1 --visibility plaintext`.
+> - **The catalog:** edit the CSV and run `npm run seed:build` as in section 1, but there is nothing to load into a database; the catalog is built into the app.
+> - **App Privacy (section 5):** answer "No, we do not collect data". Nothing leaves the device, so the answer is "Data not collected". You still need a privacy policy URL; say the collection is stored only on the phone and in backup files the user saves. Account deletion does not apply (there are no accounts).
+
 ## 0. Before your first build
 
 Three checks, all before the first `eas build`: the bundle identifier, the icon and splash screen, and Expo's own project checks.
@@ -34,7 +41,7 @@ npx expo-doctor
 npx expo install --check
 ```
 
-`expo-doctor` looks for configuration problems; `expo install --check` lists dependencies whose versions do not match the installed Expo SDK (and offers to fix them). Both need to reach Expo's servers, which was not possible in the environment where the app was written, so neither has ever been run.
+`expo-doctor` looks for configuration problems; `expo install --check` lists dependencies whose versions do not match the installed Expo SDK (and offers to fix them). Both need to reach Expo's servers. On 2026-11-01 both passed (20/20 checks, dependencies up to date); run them again before each build, since a newer Expo patch can open new mismatches.
 
 ## 1. Prerequisites
 

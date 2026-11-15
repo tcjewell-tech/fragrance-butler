@@ -1,0 +1,3 @@
+# Keep line endings as LF everywhere, so generated files (supabase/seed.sql, src/data/catalogSeed.ts)
+# compare equal to their generators on Windows checkouts.
+* text=auto eol=lf
