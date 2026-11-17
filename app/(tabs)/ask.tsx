@@ -6,6 +6,7 @@ import { butler } from '@/copy/butler';
 import { useRepositories } from '@/data/RepositoryContext';
 import { parseOccasion, timeOfDayAt } from '@/domain/recommendation';
 import { ValidationError } from '@/domain/validation';
+import { handOverAsk } from '@/features/ask/pendingAsk';
 import { Button } from '@/ui/components/Button';
 import { EmptyState } from '@/ui/components/EmptyState';
 import { ErrorBanner } from '@/ui/components/ErrorBanner';
@@ -54,7 +55,8 @@ export default function AskScreen() {
       return;
     }
     setError(null);
-    router.push({ pathname: '/tray', params: { occasion: parsed, timeOfDay } });
+    handOverAsk({ occasion: parsed, timeOfDay });
+    router.push('/tray');
   };
 
   if (load.state === 'ready' && load.bottles < MIN_BOTTLES) {

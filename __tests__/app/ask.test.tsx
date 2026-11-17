@@ -5,6 +5,7 @@ import { createMemoryRepositories } from '@/data/memory';
 import { RepositoryProvider } from '@/data/RepositoryContext';
 import type { Repositories } from '@/data/repositories';
 import { OCCASION_MAX, timeOfDayAt } from '@/domain/recommendation';
+import { pendingAsk } from '@/features/ask/pendingAsk';
 import { fixtureCatalog, fixtureIds } from '../data/fixtures';
 import AskScreen from '../../app/(tabs)/ask';
 
@@ -49,10 +50,8 @@ describe('ask screen', () => {
     await render(wrap(<AskScreen />));
     await user.type(await screen.findByLabelText(butler.askOccasionLabel), '  Office   Christmas party ');
     await user.press(screen.getByRole('button', { name: butler.askCta }));
-    expect(mockRouter.push).toHaveBeenCalledWith({
-      pathname: '/tray',
-      params: { occasion: 'Office Christmas party', timeOfDay: timeOfDayAt(new Date()) },
-    });
+    expect(mockRouter.push).toHaveBeenCalledWith('/tray');
+    expect(pendingAsk()).toEqual({ occasion: 'Office Christmas party', timeOfDay: timeOfDayAt(new Date()) });
   });
 
   test('an empty occasion explains instead of asking', async () => {

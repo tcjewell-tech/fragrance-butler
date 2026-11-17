@@ -242,7 +242,8 @@ export function createMemoryRepositories(
         const previous = request.selection ? items.get(request.selection) : undefined;
         await commit(() => {
           if (previous) items.set(previous.id, { ...previous, wearCount: Math.max(previous.wearCount - 1, 0) });
-          items.set(itemId, { ...chosen, wearCount: chosen.wearCount + 1 });
+          // Capped at the largest count the stored-state schema accepts, so the saved collection always loads again.
+          items.set(itemId, { ...chosen, wearCount: Math.min(chosen.wearCount + 1, Number.MAX_SAFE_INTEGER) });
         });
         request.selection = itemId;
       }),

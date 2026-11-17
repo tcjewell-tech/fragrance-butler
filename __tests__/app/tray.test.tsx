@@ -7,13 +7,15 @@ import { RepositoryProvider } from '@/data/RepositoryContext';
 import type { Repositories } from '@/data/repositories';
 import type { Recommendation } from '@/domain/recommendation';
 import type { Fragrance } from '@/domain/types';
+import { handOverAsk } from '@/features/ask/pendingAsk';
 import { fixtureCatalog } from '../data/fixtures';
 import TrayScreen from '../../app/tray';
 
-let mockParams: Record<string, string> = {};
-jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => mockParams,
-}));
+jest.mock('expo-router', () => {
+  const { createElement } = require('react');
+  const { Text } = require('react-native');
+  return { Redirect: ({ href }: { href: string }) => createElement(Text, null, `Redirected to ${href}`) };
+});
 
 const extra: Fragrance[] = ['Shalimar', 'Mitsouko'].map((name, i) => ({
   ...fixtureCatalog[0],
@@ -54,7 +56,7 @@ const wearButtons = () => screen.getAllByRole('button', { name: /^Wear / });
 
 let announceSpy: jest.SpyInstance;
 beforeEach(() => {
-  mockParams = { occasion: 'Office Christmas party', timeOfDay: 'evening' };
+  handOverAsk({ occasion: 'Office Christmas party', timeOfDay: 'evening' });
   announceSpy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
 });
 afterEach(() => {
@@ -175,13 +177,25 @@ describe('tray screen', () => {
     expect(await screen.findByText(butler.trayFailed)).toBeOnTheScreen();
   });
 
-  test('an unknown time of day falls back to the clock', async () => {
-    mockParams = { occasion: 'Dinner out', timeOfDay: 'teatime' };
-    const { repos, wrap } = await setup(2);
+  test('opened by a link, with nothing handed over, it never asks and goes home', async () => {
+    handOverAsk(null);
+    const { repos, wrap } = await setup(3);
     const recommend = jest.spyOn(repos.recommendations, 'recommend');
     await render(wrap(<TrayScreen />));
-    await screen.findAllByRole('button', { name: /^Wear / });
-    const sent = recommend.mock.calls[0][0].timeOfDay;
-    expect(['morning', 'afternoon', 'evening', 'night']).toContain(sent);
+    expect(screen.getByText('Redirected to /')).toBeOnTheScreen();
+    expect(recommend).not.toHaveBeenCalled();
+  });
+
+  test('a hand-off is used once: a re-render never asks again, and a second tray goes home', async () => {
+    const { repos, wrap } = await setup(3);
+    const recommend = jest.spyOn(repos.recommendations, 'recommend');
+    const { rerender, unmount } = await render(wrap(<TrayScreen />));
+    await screen.findByText(butler.trayGreeting('evening'));
+    await rerender(wrap(<TrayScreen />));
+    expect(recommend).toHaveBeenCalledTimes(1);
+    await unmount();
+    await render(wrap(<TrayScreen />));
+    expect(screen.getByText('Redirected to /')).toBeOnTheScreen();
+    expect(recommend).toHaveBeenCalledTimes(1);
   });
 });

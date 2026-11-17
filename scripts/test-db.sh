@@ -49,8 +49,9 @@ if [ "${#RUN[@]}" -gt 0 ]; then chown postgres "$WORK"; fi
 "${RUN[@]}" mkdir "$SOCK"
 
 # UTF-8 with a real ctype so lower() and normalize() behave on non-ASCII text.
-"${RUN[@]}" initdb -D "$DATA" -U postgres --auth=trust -E UTF8 --locale=C.UTF-8 >"$WORK/initdb.log" 2>&1 \
-  || { cat "$WORK/initdb.log" >&2; exit 2; }
+# Output is held in memory, not $WORK/initdb.log: $WORK belongs to postgres, which could plant a symlink for root to follow.
+INITDB_OUT="$("${RUN[@]}" initdb -D "$DATA" -U postgres --auth=trust -E UTF8 --locale=C.UTF-8 2>&1)" \
+  || { printf '%s\n' "$INITDB_OUT" >&2; exit 2; }
 
 "${RUN[@]}" pg_ctl -D "$DATA" -l "$WORK/postgres.log" -w \
   -o "-k $SOCK -p $PORT -c listen_addresses= -c fsync=off" start >/dev/null \
