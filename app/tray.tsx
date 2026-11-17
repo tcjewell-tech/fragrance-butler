@@ -1,19 +1,15 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { butler } from '@/copy/butler';
 import { useRepositories } from '@/data/RepositoryContext';
-import { TIMES_OF_DAY, timeOfDayAt, type Recommendation, type TimeOfDay } from '@/domain/recommendation';
+import type { Recommendation } from '@/domain/recommendation';
 import type { CollectionEntry } from '@/domain/types';
+import { handOverAsk, pendingAsk, type PendingAsk } from '@/features/ask/pendingAsk';
 import { Button } from '@/ui/components/Button';
 import { ErrorBanner } from '@/ui/components/ErrorBanner';
 import { Tray, type TrayPick } from '@/ui/components/Tray';
 import { useTheme } from '@/ui/theme';
-
-const first = (v: string | string[] | undefined): string => (Array.isArray(v) ? (v[0] ?? '') : (v ?? ''));
-
-const asTimeOfDay = (v: string): TimeOfDay =>
-  (TIMES_OF_DAY as readonly string[]).includes(v) ? (v as TimeOfDay) : timeOfDayAt(new Date());
 
 /** Joins the butler's picks to the bottles they name. Null when fewer than two can be shown. */
 function toTray(recommendation: Recommendation, entries: CollectionEntry[]): TrayPick[] | null {
@@ -46,12 +42,19 @@ const NOTES = {
   choose: butler.trayChooseFailed,
 } as const;
 
+/**
+ * Asks only with what the Ask screen handed over, read once at mount. Nothing comes from the URL, so a link
+ * to /tray can neither start a request nor change one already on screen; with nothing handed over it goes home.
+ */
 export default function TrayScreen() {
+  const [ask] = useState(pendingAsk);
+  useEffect(() => handOverAsk(null), []);
+  return ask ? <TrayFor {...ask} /> : <Redirect href="/" />;
+}
+
+function TrayFor({ occasion, timeOfDay }: PendingAsk) {
   const { colors, fonts, spacing } = useTheme();
   const { collection, recommendations } = useRepositories();
-  const params = useLocalSearchParams<{ occasion?: string; timeOfDay?: string }>();
-  const occasion = first(params.occasion);
-  const timeOfDay = asTimeOfDay(first(params.timeOfDay));
 
   const [shown, setShown] = useState<Shown>({ state: 'choosing' });
   const [chosenId, setChosenId] = useState<string | null>(null);

@@ -84,6 +84,19 @@ describe('local repositories', () => {
     expect(await repos.catalog.getById('catalog:dior|sauvage|EDT')).not.toBeNull();
   });
 
+  test('wearing a bottle restored at the largest wearCount a backup may hold leaves a collection that still loads', async () => {
+    const storage = fakeStorage();
+    const first = await createLocalRepositories(storage, fixtureCatalog);
+    const other = await first.collection.add(newItem());
+    const full = { ...other, id: 'restored-full', wearCount: Number.MAX_SAFE_INTEGER };
+    await first.applyRestore({ addFragrances: [], addItems: [full], alreadyPresent: 0, skipped: 0 });
+    const { requestId } = await first.recommendations.recommend({ occasion: 'Dinner out', timeOfDay: 'evening' });
+    await first.recommendations.recordSelection(requestId, full.id);
+
+    const second = await createLocalRepositories(storage, fixtureCatalog);
+    expect((await second.collection.get(full.id))?.item.wearCount).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
   test('a failing setItem makes add reject and leaves the collection empty', async () => {
     const storage = fakeStorage();
     storage.setItem = () => Promise.reject(new Error('quota'));
