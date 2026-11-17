@@ -175,3 +175,51 @@ describe('memory repositories with persistence options', () => {
     expect(emptyState()).toEqual({ version: 1, customFragrances: [], items: [], requestIds: {} });
   });
 });
+
+describe('the timestamp clock seeded from stored bottles (F2/F4)', () => {
+  const NOW = Date.parse('2026-11-17T12:00:00.000Z');
+  const iso = (ms: number) => new Date(ms).toISOString();
+  beforeEach(() => jest.spyOn(Date, 'now').mockReturnValue(NOW));
+  afterEach(() => jest.restoreAllMocks());
+
+  const relaunch = (items: CollectionItem[]) =>
+    createMemoryRepositories(fixtureCatalog, {
+      initial: { version: 1, customFragrances: [custom], items, requestIds: {} },
+    });
+
+  test('a stored createdAt at the largest valid date does not break Add', async () => {
+    const repos = relaunch([storedItem({ createdAt: '+275760-09-13T00:00:00.000Z' })]);
+    expect((await repos.collection.add(newItem())).createdAt).toBe(iso(NOW));
+  });
+
+  test.each(['9000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z', '2026-11-18T12:00:00.001Z'])(
+    'a stored createdAt more than a day ahead (%s) does not push later bottles into the future',
+    async (createdAt) => {
+      const repos = relaunch([storedItem({ createdAt })]);
+      expect((await repos.collection.add(newItem())).createdAt).toBe(iso(NOW));
+      expect((await repos.collection.add(newItem())).createdAt).toBe(iso(NOW + 1));
+      expect(repos.snapshot().items[0].createdAt).toBe(createdAt); // the stored bottle itself is not rewritten
+    },
+  );
+
+  test('a genuine bottle a few hours ahead of a slow device clock keeps its date, and new bottles still sort after it', async () => {
+    const ahead = iso(NOW + 3 * 60 * 60 * 1000);
+    const repos = relaunch([storedItem({ createdAt: ahead })]);
+    const added = await repos.collection.add(newItem());
+    expect(added.createdAt).toBe(iso(Date.parse(ahead) + 1));
+    expect((await repos.collection.list()).map((e) => e.item.id)).toEqual([added.id, 'item-1']);
+    expect(repos.snapshot().items[0].createdAt).toBe(ahead);
+  });
+
+  test('an unparseable stored createdAt is kept as stored and ignored by the clock', async () => {
+    const repos = relaunch([storedItem({ createdAt: 'not a date' })]);
+    expect((await repos.collection.add(newItem())).createdAt).toBe(iso(NOW));
+    expect(repos.snapshot().items[0].createdAt).toBe('not a date');
+  });
+
+  test('a very large stored collection loads without hitting the engine argument limit', async () => {
+    const items = Array.from({ length: 200_000 }, (_, n) => storedItem({ id: `item-${n}`, createdAt: iso(NOW - n) }));
+    const repos = relaunch(items);
+    expect((await repos.collection.add(newItem())).createdAt).toBe(iso(NOW + 1));
+  });
+});

@@ -13,6 +13,7 @@ import type { PersistedState } from './persistedState';
 import type { CatalogRepository, CollectionRepository, RecommendationRepository, Repositories } from './repositories';
 
 const LOCAL_USER_ID = 'local-user';
+const MAX_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000;
 
 const copyFragrance = (f: Fragrance): Fragrance => ({
   ...f,
@@ -55,7 +56,15 @@ export function createMemoryRepositories(
     customIds.add(f.id);
   }
   for (const i of initial?.items ?? []) items.set(i.id, copyItem(i));
-  let lastCreatedMs = Math.max(0, ...[...items.values()].map((i) => Date.parse(i.createdAt) || 0));
+  // Seeded from the newest stored bottle, but not from one dated beyond a day of clock skew: a restored
+  // far-future createdAt would otherwise drag every later bottle into the future, or past the last valid date.
+  // Stored dates are never rewritten; a loop, not Math.max(...spread), so a huge collection can't hit the argument limit.
+  const seedLimitMs = Date.now() + MAX_CLOCK_SKEW_MS;
+  let lastCreatedMs = 0;
+  for (const i of items.values()) {
+    const ms = Date.parse(i.createdAt);
+    if (ms > lastCreatedMs && ms <= seedLimitMs) lastCreatedMs = ms;
+  }
 
   // Strictly increasing so bottles added within one millisecond still sort deterministically.
   const nextTimestamp = (): string => {

@@ -170,6 +170,50 @@ describe('backup API', () => {
     expect(await api.unbackedCount()).toBe(2);
   });
 
+  test('after restoring a crafted far-future createdAt and relaunching, Add still works and backing up clears the reminder', async () => {
+    const source = await setup();
+    await source.repositories.collection.add(newItem());
+    await source.api.backUp();
+    const file = JSON.parse(source.device.files.get(BACKUP_FILENAME)!);
+    file.items[0].createdAt = '+275760-09-13T00:00:00.000Z';
+    file.items.push({ ...file.items[0], id: 'year-9000', createdAt: '9000-01-01T00:00:00.000Z' });
+
+    const target = await setup();
+    target.device.picked = JSON.stringify(file);
+    expect(await target.api.restore()).toEqual({ added: 2, alreadyPresent: 0, skipped: 0 });
+
+    jest.spyOn(Date, 'now').mockReturnValue(NOW.getTime());
+    const relaunched = await createLocalRepositories(target.storage, fixtureCatalog);
+    const api = createBackupApi({ repositories: relaunched, storage: target.storage, device: target.device, now: () => NOW });
+    const added = await relaunched.collection.add(newItem());
+    expect(added.createdAt).toBe(NOW.toISOString());
+    await api.backUp();
+    const later = new Date(NOW.getTime() + 60_000);
+    jest.spyOn(Date, 'now').mockReturnValue(later.getTime());
+    expect((await relaunched.collection.add(newItem())).createdAt).toBe(later.toISOString());
+    jest.restoreAllMocks();
+    // The crafted year-9000 bottle plus the one genuinely added after the backup; the first new bottle was backed up.
+    expect(await api.unbackedCount()).toBe(2);
+  });
+
+  test('an app-exported backup with bottles ahead of the restoring phone clock restores with every date unchanged', async () => {
+    const source = await setup();
+    jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-06-01T00:00:00.000Z'));
+    await source.repositories.collection.add(newItem());
+    await source.repositories.collection.add(newItem());
+    jest.restoreAllMocks();
+    await source.api.backUp();
+    const text = source.device.files.get(BACKUP_FILENAME)!;
+
+    const target = await setup();
+    target.device.picked = text;
+    jest.spyOn(Date, 'now').mockReturnValue(NOW.getTime()); // five months behind the source phone
+    expect(await target.api.restore()).toEqual({ added: 2, alreadyPresent: 0, skipped: 0 });
+    jest.restoreAllMocks();
+    const restored = (await target.repositories.collection.list()).map((e) => e.item.createdAt);
+    expect(restored).toEqual(parseBackup(text).items.map((i) => i.createdAt));
+  });
+
   test('the reminder threshold is 3', () => {
     expect(BACKUP_REMINDER_THRESHOLD).toBe(3);
   });
