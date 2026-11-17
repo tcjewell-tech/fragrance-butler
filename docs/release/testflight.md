@@ -84,7 +84,7 @@ Before external testers use it, update the privacy answers and policy in section
 
 The app signs people in with a **6-digit code** emailed to them. Supabase sends a magic link by default, so you must change the email template.
 
-1. In Supabase, go to Authentication, then Providers, and check **Email** is enabled.
+1. In Supabase, go to Authentication, then Sign In / Providers, and check **Email** is enabled. In its settings, check **Confirm Email** is on; this is a security setting, see [`email-confirmation.md`](email-confirmation.md).
 2. Go to Authentication, then Email Templates, then **Magic Link** (and also **Confirm signup**, which new users receive on first sign-in).
 3. Edit each template so the body shows the code, for example:
 
