@@ -12,6 +12,9 @@ import AddScreen from '../../app/(tabs)/add';
 import ConfirmScreen from '../../app/add/confirm';
 import CustomScreen from '../../app/add/custom';
 
+// The first render lazily loads and transforms the screen's dependencies; on CI's cold cache that alone nears 5 s.
+jest.setTimeout(15_000);
+
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
