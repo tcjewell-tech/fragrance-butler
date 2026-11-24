@@ -56,17 +56,20 @@ export function createMemoryRepositories(
     customIds.add(f.id);
   }
   for (const i of initial?.items ?? []) items.set(i.id, copyItem(i));
-  // Seeded from the newest stored bottle, but not from one dated beyond a day of clock skew: a restored
+  let lastModifiedAt = initial?.lastModifiedAt;
+  // Seeded from the newest stored date, but not from one beyond a day of clock skew: a restored
   // far-future createdAt would otherwise drag every later bottle into the future, or past the last valid date.
   // Stored dates are never rewritten; a loop, not Math.max(...spread), so a huge collection can't hit the argument limit.
   const seedLimitMs = Date.now() + MAX_CLOCK_SKEW_MS;
   let lastCreatedMs = 0;
-  for (const i of items.values()) {
-    const ms = Date.parse(i.createdAt);
+  const seedFrom = (iso: string | undefined) => {
+    const ms = Date.parse(iso ?? '');
     if (ms > lastCreatedMs && ms <= seedLimitMs) lastCreatedMs = ms;
-  }
+  };
+  for (const i of items.values()) seedFrom(i.createdAt);
+  seedFrom(lastModifiedAt);
 
-  // Strictly increasing so bottles added within one millisecond still sort deterministically.
+  // Strictly increasing so bottles added within one millisecond still sort deterministically. Also dates edits.
   const nextTimestamp = (): string => {
     lastCreatedMs = Math.max(Date.now(), lastCreatedMs + 1);
     return new Date(lastCreatedMs).toISOString();
@@ -77,6 +80,7 @@ export function createMemoryRepositories(
     customFragrances: [...customIds].map((id) => copyFragrance(fragrances.get(id)!)),
     items: [...items.values()].map(copyItem),
     requestIds: Object.fromEntries(itemIdByRequestId),
+    ...(lastModifiedAt ? { lastModifiedAt } : {}),
   });
 
   // Changes run one at a time, so saves land in call order.
@@ -100,6 +104,7 @@ export function createMemoryRepositories(
       items: new Map(items),
       requestIds: new Map(itemIdByRequestId),
       lastCreatedMs,
+      lastModifiedAt,
     };
     const result = change();
     if (!onChange) return result;
@@ -112,6 +117,7 @@ export function createMemoryRepositories(
       customIds.clear();
       before.customIds.forEach((id) => customIds.add(id));
       lastCreatedMs = before.lastCreatedMs;
+      lastModifiedAt = before.lastModifiedAt;
       throw new RepositoryError('unknown', 'Could not save the collection', { cause });
     }
     return result;
@@ -214,11 +220,22 @@ export function createMemoryRepositories(
         const updated: CollectionItem = { ...existing, ...patch };
         return commit(() => {
           items.set(itemId, updated);
+          lastModifiedAt = nextTimestamp();
           return copyItem(updated);
         });
       }),
 
-    remove: (itemId) => serial(() => commit(() => void items.delete(itemId))),
+    remove: (itemId) =>
+      serial(() =>
+        commit(() => {
+          if (!items.delete(itemId)) return;
+          // The bottle is gone, so the request ids that pointed at it are forgotten too.
+          for (const [requestId, id] of itemIdByRequestId) {
+            if (id === itemId) itemIdByRequestId.delete(requestId);
+          }
+          lastModifiedAt = nextTimestamp();
+        }),
+      ),
   };
 
   // Stands in for the `recommend` Edge Function: the first bottles not excluded, in collection order.
@@ -253,6 +270,7 @@ export function createMemoryRepositories(
           if (previous) items.set(previous.id, { ...previous, wearCount: Math.max(previous.wearCount - 1, 0) });
           // Capped at the largest count the stored-state schema accepts, so the saved collection always loads again.
           items.set(itemId, { ...chosen, wearCount: Math.min(chosen.wearCount + 1, Number.MAX_SAFE_INTEGER) });
+          lastModifiedAt = nextTimestamp();
         });
         request.selection = itemId;
       }),

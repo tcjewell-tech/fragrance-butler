@@ -1,6 +1,6 @@
 import { RepositoryError } from '@/data/errors';
 import { createMemoryRepositories } from '@/data/memory';
-import { emptyState, type PersistedState } from '@/data/persistedState';
+import { emptyState, persistedStateSchema, type PersistedState } from '@/data/persistedState';
 import type { CollectionItem, Fragrance, NewCollectionItem } from '@/domain/types';
 import { fixtureCatalog, fixtureIds } from './fixtures';
 
@@ -174,6 +174,72 @@ describe('memory repositories with persistence options', () => {
   test('emptyState has no fragrances, items or request ids', () => {
     expect(emptyState()).toEqual({ version: 1, customFragrances: [], items: [], requestIds: {} });
   });
+
+  test('remove forgets the removed bottle’s request ids and keeps the others', async () => {
+    const repos = createMemoryRepositories(fixtureCatalog);
+    const a = await repos.collection.add(newItem({ clientRequestId: REQ_A }));
+    const b = await repos.collection.add(newItem({ clientRequestId: REQ_1 }));
+    await repos.collection.remove(a.id);
+    expect(repos.snapshot().requestIds).toEqual({ [REQ_1]: b.id });
+  });
+});
+
+describe('lastModifiedAt', () => {
+  const T0 = Date.parse('2026-11-24T12:00:00.000Z');
+  let clock = T0;
+  beforeEach(() => {
+    clock = T0;
+    jest.spyOn(Date, 'now').mockImplementation(() => clock);
+  });
+  afterEach(() => jest.restoreAllMocks());
+  const at = (ms: number) => {
+    clock = ms;
+    return new Date(ms).toISOString();
+  };
+
+  test('is absent after adds, then advances on update, recordSelection and remove', async () => {
+    const repos = createMemoryRepositories(fixtureCatalog);
+    const a = await repos.collection.add(newItem());
+    const b = await repos.collection.add(newItem());
+    expect(repos.snapshot()).not.toHaveProperty('lastModifiedAt');
+
+    const updatedAt = at(T0 + 1_000);
+    await repos.collection.update(a.id, { favorite: true });
+    expect(repos.snapshot().lastModifiedAt).toBe(updatedAt);
+
+    const { requestId } = await repos.recommendations.recommend({ occasion: 'Office', timeOfDay: 'morning' });
+    const wornAt = at(T0 + 2_000);
+    await repos.recommendations.recordSelection(requestId, b.id);
+    expect(repos.snapshot().lastModifiedAt).toBe(wornAt);
+
+    const removedAt = at(T0 + 3_000);
+    await repos.collection.remove(a.id);
+    expect(repos.snapshot().lastModifiedAt).toBe(removedAt);
+  });
+
+  test('removing a bottle that is not there leaves it unchanged', async () => {
+    const repos = createMemoryRepositories(fixtureCatalog);
+    await repos.collection.remove('nope');
+    expect(repos.snapshot()).not.toHaveProperty('lastModifiedAt');
+  });
+
+  test('round-trips through the initial state and is rolled back with a failed save', async () => {
+    let fail = false;
+    const stamp = new Date(T0 - 1_000).toISOString();
+    const repos = createMemoryRepositories(fixtureCatalog, {
+      initial: { version: 1, customFragrances: [custom], items: [storedItem()], requestIds: {}, lastModifiedAt: stamp },
+      onChange: () => (fail ? Promise.reject(new Error('disk full')) : undefined),
+    });
+    expect(repos.snapshot().lastModifiedAt).toBe(stamp);
+    fail = true;
+    await expect(repos.collection.update('item-1', { favorite: true })).rejects.toThrow();
+    expect(repos.snapshot().lastModifiedAt).toBe(stamp);
+  });
+
+  test('stored state with or without it passes the schema', () => {
+    expect(persistedStateSchema.safeParse(emptyState()).success).toBe(true);
+    expect(persistedStateSchema.safeParse({ ...emptyState(), lastModifiedAt: at(T0) }).success).toBe(true);
+  });
 });
 
 describe('the timestamp clock seeded from stored bottles (F2/F4)', () => {
@@ -215,6 +281,15 @@ describe('the timestamp clock seeded from stored bottles (F2/F4)', () => {
     const repos = relaunch([storedItem({ createdAt: 'not a date' })]);
     expect((await repos.collection.add(newItem())).createdAt).toBe(iso(NOW));
     expect(repos.snapshot().items[0].createdAt).toBe('not a date');
+  });
+
+  test('a stored lastModifiedAt seeds the clock too, so a later edit is never dated before it', async () => {
+    const edited = iso(NOW + 60_000);
+    const repos = createMemoryRepositories(fixtureCatalog, {
+      initial: { version: 1, customFragrances: [custom], items: [storedItem()], requestIds: {}, lastModifiedAt: edited },
+    });
+    await repos.collection.update('item-1', { favorite: true });
+    expect(repos.snapshot().lastModifiedAt).toBe(iso(Date.parse(edited) + 1));
   });
 
   test('a very large stored collection loads without hitting the engine argument limit', async () => {

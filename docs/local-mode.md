@@ -29,10 +29,13 @@ Settings opens with **Where your collection is kept**: **On this phone** is sele
 
 AsyncStorage, under two keys:
 
-- `fragrance-butler:v1`: the custom fragrances, the bottles, and the request ids that keep a retried "Add" from adding twice.
+- `fragrance-butler:v1`: the custom fragrances, the bottles, the request ids that keep a retried "Add" from adding twice (forgotten when their bottle is removed), and `lastModifiedAt`, when a bottle was last edited, worn or removed (absent until the first such change).
 - `fragrance-butler:last-backup`: when the last backup was made (ISO time).
 
-If the stored collection cannot be read, the app says so and leaves it untouched. It never overwrites data it could not read.
+If the stored collection cannot be read, the app says so and leaves it untouched. That screen offers two ways out:
+
+- **Save a copy of the unreadable data** writes the stored text, exactly as it is, to `fragrance-butler-raw-recovery.txt` and opens the share sheet, so it can be rescued by hand.
+- **Restore from backup** opens the file picker. Only a file that reads as a valid backup replaces the unreadable collection; then the app opens as usual. Anything else, or a cancelled picker, changes nothing.
 
 ## The catalog
 
@@ -70,6 +73,6 @@ The summary reads, for example, "Added 12 bottles; 3 were already here."
 
 ## Backup reminder
 
-Once 3 or more bottles have been added since the last backup (or ever, if there has never been one), the Collection tab shows "You have N bottles not yet backed up." **Back up** opens Settings; **Not now** hides it until the app is next opened.
+The reminder counts changes since the last backup: each bottle added (every bottle, if there has never been a backup), plus one if any bottle was edited, worn or removed. Edits and removals share one timestamp, so together they count as one. Once the count reaches 3, the Collection tab shows "You have N changes not yet backed up." **Back up** opens Settings; **Not now** hides it until the app is next opened.
 
 The share sheet cannot tell whether the file was actually saved, so opening it counts as a backup. Restoring does not count: a freshly restored phone that has never made a backup may show the reminder once. Backing up clears it.

@@ -10,7 +10,7 @@ describe('BackupReminder', () => {
 
   test('renders the count at 3', async () => {
     await render(<BackupReminder count={3} onBackUp={jest.fn()} onDismiss={jest.fn()} />);
-    expect(screen.getByText('You have 3 bottles not yet backed up.')).toBeOnTheScreen();
+    expect(screen.getByText('You have 3 changes not yet backed up.')).toBeOnTheScreen();
   });
 
   test('Back up and Not now call their handlers', async () => {

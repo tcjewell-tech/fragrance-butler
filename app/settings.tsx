@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { butler } from '@/copy/butler';
 import { useBackupApi } from '@/data/BackupApiContext';
 import type { BackupApi, RestoreSummary } from '@/data/backupApi';
@@ -60,24 +60,30 @@ export default function SettingsScreen() {
     ]);
 
   // Local mode has no account: the backup section takes the account actions' place.
+  // Scrolls, so nothing is cut off on a small screen or with large text.
+  const screenProps = {
+    style: [styles.screen, { backgroundColor: colors.parchment }],
+    contentContainerStyle: { padding: spacing.lg, gap: spacing.lg },
+  };
+
   if (backupApi) {
     return (
-      <View style={[styles.screen, { backgroundColor: colors.parchment, padding: spacing.lg, gap: spacing.lg }]}>
+      <ScrollView {...screenProps}>
         <StorageSection />
         <BackupSection api={backupApi} />
-      </View>
+      </ScrollView>
     );
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.parchment, padding: spacing.lg, gap: spacing.lg }]}>
+    <ScrollView {...screenProps}>
       {signOutFailed ? <ErrorBanner message={butler.signOutFailed} /> : null}
       <Button variant="quiet" label={butler.signOut} onPress={() => void doSignOut()} disabled={signingOut} />
       <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
         {deleteFailed ? <ErrorBanner message={butler.deleteAccountFailed} /> : null}
         <Button variant="danger" label={butler.deleteAccount} onPress={confirmDelete} disabled={deleting} />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 

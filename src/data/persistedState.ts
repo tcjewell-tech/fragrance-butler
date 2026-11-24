@@ -9,6 +9,8 @@ export interface PersistedState {
   items: CollectionItem[];
   /** `clientRequestId` to item id, so a retried add stays idempotent after a restart. */
   requestIds: Record<string, string>;
+  /** When a bottle was last edited, worn or deleted (ISO time). Absent until the first such change. */
+  lastModifiedAt?: string;
 }
 
 export const persistedStateSchema = z.object({
@@ -16,6 +18,8 @@ export const persistedStateSchema = z.object({
   customFragrances: z.array(fragranceSchema),
   items: z.array(collectionItemSchema),
   requestIds: z.record(z.string(), z.string()),
+  // Optional, so state saved before it existed still loads.
+  lastModifiedAt: z.string().optional(),
 }) satisfies z.ZodType<PersistedState>;
 
 export function emptyState(): PersistedState {

@@ -26,7 +26,10 @@ export interface BackupApi {
   backUp(): Promise<boolean>;
   /** Merges a picked backup into the collection. Null when the user cancelled. Rejects with BackupError on a bad file. */
   restore(): Promise<RestoreSummary | null>;
-  /** Bottles created since the last backup (all of them if there has never been one). */
+  /**
+   * Changes since the last backup: each bottle created since then (all of them if there has never been one),
+   * plus one if any bottle was edited, worn or deleted since then.
+   */
   unbackedCount(): Promise<number>;
 }
 
@@ -68,8 +71,11 @@ export function createBackupApi({
 
     async unbackedCount() {
       const last = await storage.getItem(LAST_BACKUP_KEY);
-      const items = repositories.snapshot().items;
-      return last === null ? items.length : items.filter((i) => i.createdAt > last).length;
+      const { items, lastModifiedAt } = repositories.snapshot();
+      const created = last === null ? items.length : items.filter((i) => i.createdAt > last).length;
+      // shortcut: one timestamp covers all edits and deletions, so together they count as one change; keep a count if the reminder needs more.
+      const modified = lastModifiedAt !== undefined && (last === null || lastModifiedAt > last) ? 1 : 0;
+      return created + modified;
     },
   };
 }
