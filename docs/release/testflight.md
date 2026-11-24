@@ -4,10 +4,9 @@ This guide takes you from a fresh checkout to friends and family testing the app
 
 Everything below needs your own Expo and Apple Developer accounts. The repository is already configured (`app.json`, `eas.json`); you only run the commands.
 
-> **Local mode (no backend).** If you build with `EXPO_PUBLIC_LOCAL_MODE=1` (see [local-mode.md](../local-mode.md)), the collection stays on the phone and several steps fall away:
+> **Local mode (no backend) is the default.** Unless you build with `EXPO_PUBLIC_CLOUD=1`, the collection stays on the phone (see [local-mode.md](../local-mode.md)) and several steps fall away:
 >
 > - **Skip** section 1's Supabase project, email sign-in and integration-test steps, section 2 (Supabase settings in EAS) and section 6 (demo mailbox: there is no sign-in).
-> - **Instead**, set the flag in EAS: `npx eas-cli env:create --environment production --name EXPO_PUBLIC_LOCAL_MODE --value 1 --visibility plaintext`.
 > - **The catalog:** edit the CSV and run `npm run seed:build` as in section 1, but there is nothing to load into a database; the catalog is built into the app.
 > - **App Privacy (section 5):** answer "No, we do not collect data". Nothing leaves the device, so the answer is "Data not collected". You still need a privacy policy URL; say the collection is stored only on the phone and in backup files the user saves. Account deletion does not apply (there are no accounts).
 

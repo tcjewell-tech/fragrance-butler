@@ -1,15 +1,23 @@
 # Local mode (collection kept on the phone)
 
-Local mode runs Fragrance Butler with no backend: no Supabase, no sign-in, nothing to pay for. The collection lives on the phone, and Settings can write a backup file and restore from one. The Supabase build stays the default; nothing in it changes.
+Local mode runs Fragrance Butler with no backend: no Supabase, no sign-in, nothing to pay for. The collection lives on the phone, and Settings can write a backup file and restore from one.
 
-## Turning it on
+## It is the default
 
-Set `EXPO_PUBLIC_LOCAL_MODE=1` when you build or run the app:
+Local mode is what you get with no settings at all: `npx expo start`, or any EAS build. No `EXPO_PUBLIC_SUPABASE_*` variable is needed, and the app never creates a Supabase client.
 
-- Locally: add `EXPO_PUBLIC_LOCAL_MODE=1` to `.env`, then `npx expo start`.
-- On EAS: `npx eas-cli env:create --environment production --name EXPO_PUBLIC_LOCAL_MODE --value 1 --visibility plaintext` (and the same for any other environment you build).
+The Supabase build (cloud data, email sign-in) is opt-in: set `EXPO_PUBLIC_CLOUD=1` plus the two `EXPO_PUBLIC_SUPABASE_*` values. Its code is unchanged and still tested. Before shipping it, follow [release/email-confirmation.md](release/email-confirmation.md) on the hosted project. (`EXPO_PUBLIC_LOCAL_MODE` from earlier builds is no longer read.)
 
-No `EXPO_PUBLIC_SUPABASE_*` variable is needed, and the app never creates a Supabase client.
+## Settings: where your collection is kept
+
+Settings opens with **Where your collection is kept**: **On this phone** is selected, and **In my account** is shown but disabled with a note that it is coming in a later update. Nothing is stored for this choice yet.
+
+## Deferred to the cloud-sync branch
+
+- Making **In my account** work: sign-in from Settings (not at launch), then uploading the bottles already on the phone into the account, and keeping both in step.
+- The Ask tab and tray (need the `recommend` and `record-selection` Edge Functions).
+- Sign out and Delete account, which only exist with an account.
+- Security finding F6 (Confirm Email): only applies once a hosted Supabase project exists. Local mode has no accounts, so there is nothing to confirm.
 
 ## What it turns off
 

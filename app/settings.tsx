@@ -6,6 +6,7 @@ import type { BackupApi, RestoreSummary } from '@/data/backupApi';
 import { useSessionApi } from '@/data/SessionApiContext';
 import { BackupError } from '@/domain/backup';
 import { Button } from '@/ui/components/Button';
+import { Chip } from '@/ui/components/Chip';
 import { ErrorBanner } from '@/ui/components/ErrorBanner';
 import { useTheme } from '@/ui/theme';
 
@@ -62,6 +63,7 @@ export default function SettingsScreen() {
   if (backupApi) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.parchment, padding: spacing.lg, gap: spacing.lg }]}>
+        <StorageSection />
         <BackupSection api={backupApi} />
       </View>
     );
@@ -75,6 +77,23 @@ export default function SettingsScreen() {
         {deleteFailed ? <ErrorBanner message={butler.deleteAccountFailed} /> : null}
         <Button variant="danger" label={butler.deleteAccount} onPress={confirmDelete} disabled={deleting} />
       </View>
+    </View>
+  );
+}
+
+// shortcut: only "On this phone" works; "In my account" stays disabled until the cloud-sync branch adds the account choice.
+function StorageSection() {
+  const { colors, fonts, spacing } = useTheme();
+  return (
+    <View style={{ gap: spacing.md }}>
+      <Text accessibilityRole="header" style={{ fontFamily: fonts.display, fontSize: 18, color: colors.ink }}>
+        {butler.storageSection}
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        <Chip label={butler.storageOnPhone} selected onPress={() => {}} />
+        <Chip label={butler.storageAccount} selected={false} disabled onPress={() => {}} />
+      </View>
+      <Text style={{ fontSize: 15, color: colors.muted }}>{butler.storageAccountLater}</Text>
     </View>
   );
 }
