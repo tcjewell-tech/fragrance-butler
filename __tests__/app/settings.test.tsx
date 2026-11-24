@@ -164,6 +164,21 @@ describe('settings screen backup section', () => {
     expect(screen.queryByRole('button', { name: butler.deleteAccount })).toBeNull();
   });
 
+  test('the storage choice shows "On this phone" selected and the account option disabled until cloud sync exists', async () => {
+    await renderLocalSettings(fakeBackupApi());
+    expect(screen.getByText(butler.storageSection)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: butler.storageOnPhone })).toBeSelected();
+    const account = screen.getByRole('button', { name: butler.storageAccount });
+    expect(account).toBeDisabled();
+    expect(account).not.toBeSelected();
+    expect(screen.getByText(butler.storageAccountLater)).toBeOnTheScreen();
+  });
+
+  test('the Supabase build shows no storage choice', async () => {
+    await renderSettings(fakeApi());
+    expect(screen.queryByText(butler.storageSection)).toBeNull();
+  });
+
   test('Back up collection calls backUp once even if pressed twice quickly, then confirms', async () => {
     const pending = deferred<boolean>();
     const backupApi = fakeBackupApi({ backUp: jest.fn(() => pending.promise) });

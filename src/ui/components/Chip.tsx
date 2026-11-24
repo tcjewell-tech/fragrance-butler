@@ -5,15 +5,17 @@ export interface ChipProps {
   label: string;
   selected: boolean;
   onPress(): void;
+  disabled?: boolean;
 }
 
-export function Chip({ label, selected, onPress }: ChipProps) {
+export function Chip({ label, selected, onPress, disabled = false }: ChipProps) {
   const { colors, spacing } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={[
         styles.base,
@@ -22,6 +24,7 @@ export function Chip({ label, selected, onPress }: ChipProps) {
           paddingVertical: spacing.sm,
           borderColor: colors.brass,
           backgroundColor: selected ? colors.brass : 'transparent',
+          opacity: disabled ? 0.5 : 1,
         },
       ]}
     >

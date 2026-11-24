@@ -1,6 +1,6 @@
 # Fragrance Butler
 
-An iOS-first Expo (React Native, TypeScript) app for cataloguing your fragrance collection. The butler advises; you decide. Supabase is the source of truth, so the collection survives losing a device.
+An iOS-first Expo (React Native, TypeScript) app for cataloguing your fragrance collection. The butler advises; you decide. By default the collection is kept on the phone, with file backup and restore in Settings ([`docs/local-mode.md`](docs/local-mode.md)). A Supabase cloud build, with email sign-in, is opt-in with `EXPO_PUBLIC_CLOUD=1`.
 
 ## Setup
 
@@ -8,12 +8,12 @@ Requires Node 22 and npm 10.
 
 ```bash
 npm install
-cp .env.example .env   # then fill in the Supabase URL and anon key
+npm start
 ```
 
-`.env` holds only public client configuration (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`). It is git-ignored; never commit it.
+That is all the default (on-phone) build needs. For the cloud build, `cp .env.example .env` and set `EXPO_PUBLIC_CLOUD=1` with the Supabase URL and anon key. `.env` holds only public client configuration and is git-ignored; never commit it.
 
-Set `EXPO_PUBLIC_FEATURE_ASK=1` to show the Ask tab and the tray. Leave it off until the `recommend` and `record-selection` Edge Functions are deployed; their contract is in `docs/recommend-contract.md`.
+In the cloud build, set `EXPO_PUBLIC_FEATURE_ASK=1` to show the Ask tab and the tray. Leave it off until the `recommend` and `record-selection` Edge Functions are deployed; their contract is in `docs/recommend-contract.md`.
 
 ## Scripts
 
