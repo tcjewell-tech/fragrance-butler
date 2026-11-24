@@ -170,6 +170,32 @@ describe('backup API', () => {
     expect(await api.unbackedCount()).toBe(2);
   });
 
+  test('unbackedCount counts edits and deletions made after last-backup as one change', async () => {
+    const { repositories, api } = await setup();
+    const a = await repositories.collection.add(newItem());
+    const b = await repositories.collection.add(newItem());
+    await api.backUp(); // stamped at NOW, after both bottles
+    expect(await api.unbackedCount()).toBe(0);
+
+    jest.spyOn(Date, 'now').mockReturnValue(NOW.getTime() + 60_000);
+    await repositories.collection.update(a.id, { favorite: true });
+    expect(await api.unbackedCount()).toBe(1);
+    await repositories.collection.remove(b.id);
+    expect(await api.unbackedCount()).toBe(1);
+    await repositories.collection.add(newItem());
+    expect(await api.unbackedCount()).toBe(2);
+    jest.restoreAllMocks();
+  });
+
+  test('unbackedCount with no backup counts every bottle plus one for edits', async () => {
+    const { repositories, api } = await setup();
+    const a = await repositories.collection.add(newItem());
+    await repositories.collection.add(newItem());
+    expect(await api.unbackedCount()).toBe(2);
+    await repositories.collection.update(a.id, { userNotes: 'A gift' });
+    expect(await api.unbackedCount()).toBe(3);
+  });
+
   test('after restoring a crafted far-future createdAt and relaunching, Add still works and backing up clears the reminder', async () => {
     const source = await setup();
     await source.repositories.collection.add(newItem());
